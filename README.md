@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/icon.png" width="128" alt="Power Sankey Card">
+</p>
+
 <h1 align="center">Power Sankey Card</h1>
 
 <p align="center">
