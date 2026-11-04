@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/icon.png" width="128" alt="Power Sankey Card">
+  <img src="assets/icon.png" width="128" alt="Sleek Power Flow">
 </p>
 
-<h1 align="center">Power Sankey Card</h1>
+<h1 align="center">Sleek Power Flow</h1>
 
 <p align="center">
   The power flow between solar, battery, grid and home as a Sankey diagram for Home Assistant.
@@ -10,12 +10,12 @@
 
 <p align="center">
   <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Custom"></a>
-  <a href="https://github.com/beatschubser/ha-power-sankey-card/releases"><img src="https://img.shields.io/github/v/release/beatschubser/ha-power-sankey-card?include_prereleases" alt="Release"></a>
-  <a href="https://github.com/beatschubser/ha-power-sankey-card/actions/workflows/validate.yml"><img src="https://github.com/beatschubser/ha-power-sankey-card/actions/workflows/validate.yml/badge.svg" alt="Validate"></a>
+  <a href="https://github.com/beatschubser/ha-sleek-power-flow/releases"><img src="https://img.shields.io/github/v/release/beatschubser/ha-sleek-power-flow?include_prereleases" alt="Release"></a>
+  <a href="https://github.com/beatschubser/ha-sleek-power-flow/actions/workflows/validate.yml"><img src="https://github.com/beatschubser/ha-sleek-power-flow/actions/workflows/validate.yml/badge.svg" alt="Validate"></a>
 </p>
 
 <p align="center">
-  <img src="assets/power-sankey-card.webp" width="416" alt="Power Sankey Card: the home consumption drops and the surplus goes into the battery">
+  <img src="assets/sleek-power-flow-card.webp" width="416" alt="Sleek Power Flow: the home consumption drops and the surplus goes into the battery">
 </p>
 
 ## Features
@@ -34,21 +34,21 @@
 ### HACS
 
 1. In HACS, open the menu (three dots, top right) → **Custom repositories**.
-2. Repository: `https://github.com/beatschubser/ha-power-sankey-card`, type: **Dashboard** → **Add**.
-3. Search for "Power Sankey Card", open it and click **Download**.
+2. Repository: `https://github.com/beatschubser/ha-sleek-power-flow`, type: **Dashboard** → **Add**.
+3. Search for "Sleek Power Flow", open it and click **Download**.
 4. Reload the browser.
 
 ### Manual
 
-1. Copy `power-sankey-card.js` to `/config/www/`.
+1. Copy `sleek-power-flow-card.js` to `/config/www/`.
 2. Settings → Dashboards → menu (three dots, top right) → **Resources** → **Add resource**. (No menu entry? Enable **Advanced mode** in your user profile.)
-3. URL: `/local/power-sankey-card.js?v=0.9.1`, type: **JavaScript module**.
+3. URL: `/local/sleek-power-flow-card.js?v=0.10.0`, type: **JavaScript module**.
 4. Reload the browser. After an update, raise the version in the URL so the browser does not use the cached file.
 
 ## Example
 
 ```yaml
-type: custom:power-sankey-card
+type: custom:sleek-power-flow-card
 solar:
   power: sensor.solar_power
   yield_today: sensor.solar_energy_today
@@ -114,7 +114,7 @@ The home consumption is always calculated from the sources. The home is always s
 | `badge_background` | `false` | Grey background for the battery badge. |
 | `tap_action` | none | Action when tapping the card. Applies everywhere except the device list and elements with their own action. |
 
-Rarely changed values such as decimals, dot speeds and font sizes are collected in `PSC_FIXED` and `PSC_FONT` at the top of the file.
+Rarely changed values such as decimals, dot speeds and font sizes are collected in `SPF_FIXED` and `SPF_FONT` at the top of the file.
 
 ## How the diagram works
 

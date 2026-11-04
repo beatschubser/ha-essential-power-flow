@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.0
+
+- Renamed to Sleek Power Flow. The card type is now `custom:sleek-power-flow-card` and the file `sleek-power-flow-card.js`. Existing cards need the new `type`, a manual installation the new resource URL.
+
 ## 0.9.1
 
 First public release.

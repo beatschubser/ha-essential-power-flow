@@ -1,5 +1,5 @@
 /*
- * Power Sankey Card for Home Assistant
+ * Sleek Power Flow for Home Assistant
  *
  * Shows the current power flow between solar, battery, grid and home as a
  * Sankey diagram, with optional devices (in a list or as own nodes), a battery
@@ -19,12 +19,12 @@
  *   5. Styles and registration
  */
 
-const PSC_VERSION = "0.9.1";
+const SPF_VERSION = "0.10.0";
 
 /* ---------- 1. constants ---------- */
 
 /* Defaults of the top-level options (see README). Per-node options default to empty. */
-const PSC_DEFAULTS = {
+const SPF_DEFAULTS = {
   max_power: 2000, // W; bands reach full height and dots full speed here
   power_unit: "auto", // auto | W | kW
   card_height: 372, // px
@@ -36,7 +36,7 @@ const PSC_DEFAULTS = {
 };
 
 /* Values that are rarely changed, kept in one place instead of being options. */
-const PSC_FIXED = {
+const SPF_FIXED = {
   kiloThreshold: 1000, // power_unit auto: from here on kW
   wattDecimals: 0,
   kiloDecimals: 1,
@@ -51,7 +51,7 @@ const PSC_FIXED = {
 };
 
 /* Font sizes in px (multiplied by font_scale) and weights, following the kiosk design rules. */
-const PSC_FONT = {
+const SPF_FONT = {
   value: 18, // power values at the nodes, battery badge
   unit: 14, // units next to values
   name: 12, // node names (only when a name is set)
@@ -67,7 +67,7 @@ const PSC_FONT = {
 };
 
 /* Fixed drawing measures in px (or fractions of the card width). */
-const PSC_GEOMETRY = {
+const SPF_GEOMETRY = {
   nodeGap: 14, // vertical gap between two nodes on one side
   ghostHeight: 3, // height of an idle node (home without power)
   minBand: 2, // minimum band thickness
@@ -82,10 +82,10 @@ const PSC_GEOMETRY = {
 
 /* Top-to-bottom order on each side. Battery and grid sit on the side of their current direction.
    Devices shown as nodes sit between home and battery (see _buildNodes). */
-const PSC_ORDER = { solar: 0, batOut: 1, gridIn: 2, home: 0, batIn: 1, gridOut: 2 };
+const SPF_ORDER = { solar: 0, batOut: 1, gridIn: 2, home: 0, batIn: 1, gridOut: 2 };
 
 /* All possible bands: [source node, target node, key in the allocation result] */
-const PSC_LINKS = [
+const SPF_LINKS = [
   ["solar", "home", "solarToHome"],
   ["solar", "batIn", "solarToBattery"],
   ["solar", "gridOut", "solarToGrid"],
@@ -95,7 +95,7 @@ const PSC_LINKS = [
   ["gridIn", "batIn", "gridToBattery"],
 ];
 
-const PSC_COLORS = {
+const SPF_COLORS = {
   solar: "var(--energy-solar-color, #ff9800)",
   gridIn: "var(--energy-grid-consumption-color, #488fc2)",
   gridOut: "var(--energy-grid-return-color, #8353d1)",
@@ -103,11 +103,11 @@ const PSC_COLORS = {
   batIn: "var(--energy-battery-in-color, #f06292)",
   home: "var(--secondary-text-color, #9aa0a6)",
 };
-const PSC_DEVICE_COLORS = ["#d0cc5b", "#964cb5", "#b54c9d", "#5bd0cc", "#e07a5f", "#7ab0d0", "#a3c95b", "#d08a5b"];
-const PSC_UNIT_PREFIXES = ["K", "M", "G", "T"];
-const PSC_THIN_SPACE = " ";
+const SPF_DEVICE_COLORS = ["#d0cc5b", "#964cb5", "#b54c9d", "#5bd0cc", "#e07a5f", "#7ab0d0", "#a3c95b", "#d08a5b"];
+const SPF_UNIT_PREFIXES = ["K", "M", "G", "T"];
+const SPF_THIN_SPACE = " ";
 
-const PSC_I18N = {
+const SPF_I18N = {
   de: {
     solar: "Solar", grid: "Netz", battery: "Batterie", home: "Haus", yield: "Ertrag heute", forecast: "Prognose morgen",
     setup: "Bitte im Editor mindestens einen Sensor für Solar, Batterie oder Netz wählen.",
@@ -120,17 +120,17 @@ const PSC_I18N = {
 
 /* ---------- 2. pure helpers ---------- */
 
-const pscEsc = (s) =>
+const spfEsc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-const pscClamp = (v, min, max) => Math.min(Math.max(v, min), max);
+const spfClamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
-const pscSocIcon = (soc) =>
+const spfSocIcon = (soc) =>
   soc === null ? "mdi:battery" : soc > 72 ? "mdi:battery-high" : soc > 44 ? "mdi:battery-medium" : soc > 16 ? "mdi:battery-low" : "mdi:battery-outline";
 
 /* Sources (solar, battery, grid) fill targets (home, battery, grid) top to bottom.
    This "north-west corner" assignment never produces crossing bands. */
-function pscAllocate(solar, batOut, fromGrid, cons, batIn, toGrid) {
+function spfAllocate(solar, batOut, fromGrid, cons, batIn, toGrid) {
   const src = [solar, batOut, fromGrid];
   const dst = [cons, batIn, toGrid];
   const forbidden = (i, j) => (i === 1 && j === 1) || (i === 2 && j === 2); // battery to battery, grid to grid
@@ -156,7 +156,7 @@ function pscAllocate(solar, batOut, fromGrid, cons, batIn, toGrid) {
 /* Splits the power flowing into the home among parts (home rest, then devices shown as
    own nodes). Sources (solar, battery, grid) fill the parts top to bottom, so bands do not
    cross. Returns one [fromSolar, fromBattery, fromGrid] per part. */
-function pscSplitHome(fromSources, parts) {
+function spfSplitHome(fromSources, parts) {
   const left = [...fromSources];
   return parts.map((need) => {
     const got = [0, 0, 0];
@@ -171,7 +171,7 @@ function pscSplitHome(fromSources, parts) {
 }
 
 /* Points at equal arc length along a cubic bezier, so dots move at constant speed. */
-function pscSampleBezier(p0, p1, p2, p3, count) {
+function spfSampleBezier(p0, p1, p2, p3, count) {
   const at = (t) => {
     const u = 1 - t;
     return [
@@ -195,14 +195,14 @@ function pscSampleBezier(p0, p1, p2, p3, count) {
     const target = (k / (count - 1)) * total;
     while (j < steps - 1 && len[j + 1] < target) j++;
     const seg = len[j + 1] - len[j] || 1;
-    const f = pscClamp((target - len[j]) / seg, 0, 1);
+    const f = spfClamp((target - len[j]) / seg, 0, 1);
     out.push([raw[j][0] + (raw[j + 1][0] - raw[j][0]) * f, raw[j][1] + (raw[j + 1][1] - raw[j][1]) * f]);
   }
   return out;
 }
 
 /* Position at phase (0..1) along sampled points. */
-function pscPointAt(pts, phase) {
+function spfPointAt(pts, phase) {
   const x = phase * (pts.length - 1);
   const j = Math.min(Math.floor(x), pts.length - 2);
   const t = x - j;
@@ -211,11 +211,11 @@ function pscPointAt(pts, phase) {
 
 /* ---------- 3. the card ---------- */
 
-class PowerSankeyCard extends HTMLElement {
+class SleekPowerFlowCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    this._uid = "psc" + Math.random().toString(36).slice(2, 8);
+    this._uid = "spf" + Math.random().toString(36).slice(2, 8);
     this._width = 0;
     this._sig = null;
     this._actions = {};
@@ -232,7 +232,7 @@ class PowerSankeyCard extends HTMLElement {
   }
 
   static getConfigElement() {
-    return document.createElement("power-sankey-card-editor");
+    return document.createElement("sleek-power-flow-card-editor");
   }
 
   setConfig(config) {
@@ -300,7 +300,7 @@ class PowerSankeyCard extends HTMLElement {
   _ensureShell() {
     if (this._card) return;
     this.shadowRoot.innerHTML =
-      `<style>${PowerSankeyCard.styles}</style><ha-card><div class="main">` +
+      `<style>${SleekPowerFlowCard.styles}</style><ha-card><div class="main">` +
       `<div class="hint" hidden></div>` +
       `<div class="sankey"><svg class="flows" aria-hidden="true"></svg><div class="dots"></div><div class="labels"></div></div>` +
       `<div class="list" hidden></div><div class="yield" hidden></div>` +
@@ -360,18 +360,18 @@ class PowerSankeyCard extends HTMLElement {
 
   _opt(key) {
     const v = this._config[key];
-    return v === undefined || v === null || v === "" ? PSC_DEFAULTS[key] : v;
+    return v === undefined || v === null || v === "" ? SPF_DEFAULTS[key] : v;
   }
 
   /* numeric option; falls back to the default when invalid */
   _optNum(key, { min = -Infinity, max = Infinity, positive = false } = {}) {
     const v = Number(this._opt(key));
-    if (!Number.isFinite(v) || (positive && v <= 0)) return PSC_DEFAULTS[key];
-    return pscClamp(v, min, max);
+    if (!Number.isFinite(v) || (positive && v <= 0)) return SPF_DEFAULTS[key];
+    return spfClamp(v, min, max);
   }
 
   _cardHeight() {
-    return this._config ? this._optNum("card_height", { positive: true }) : PSC_DEFAULTS.card_height;
+    return this._config ? this._optNum("card_height", { positive: true }) : SPF_DEFAULTS.card_height;
   }
 
   _transitionMs() {
@@ -380,7 +380,7 @@ class PowerSankeyCard extends HTMLElement {
   }
 
   _fontPx(key) {
-    return PSC_FONT[key] * this._optNum("font_scale", { min: 0.5, max: 2 });
+    return SPF_FONT[key] * this._optNum("font_scale", { min: 0.5, max: 2 });
   }
 
   /* ----- reading states ----- */
@@ -390,7 +390,7 @@ class PowerSankeyCard extends HTMLElement {
   }
 
   _t(key) {
-    return (PSC_I18N[this._lang().slice(0, 2)] || PSC_I18N.en)[key];
+    return (SPF_I18N[this._lang().slice(0, 2)] || SPF_I18N.en)[key];
   }
 
   /* state of one entity in W (kW, MW … are converted); 0 when unavailable */
@@ -399,7 +399,7 @@ class PowerSankeyCard extends HTMLElement {
     const v = Number(s?.state);
     if (!s || !Number.isFinite(v)) return 0;
     const unit = String(s.attributes?.unit_of_measurement || "");
-    const idx = PSC_UNIT_PREFIXES.indexOf(unit.toUpperCase().slice(0, 1));
+    const idx = SPF_UNIT_PREFIXES.indexOf(unit.toUpperCase().slice(0, 1));
     return idx > -1 ? v * Math.pow(1000, idx + 1) : v;
   }
 
@@ -443,24 +443,24 @@ class PowerSankeyCard extends HTMLElement {
   /* power as [number, unit] following power_unit */
   _powerParts(v) {
     const mode = this._opt("power_unit");
-    const isK = mode === "kW" || (mode !== "W" && Math.abs(v) >= PSC_FIXED.kiloThreshold);
-    const d = isK ? PSC_FIXED.kiloDecimals : PSC_FIXED.wattDecimals;
+    const isK = mode === "kW" || (mode !== "W" && Math.abs(v) >= SPF_FIXED.kiloThreshold);
+    const d = isK ? SPF_FIXED.kiloDecimals : SPF_FIXED.wattDecimals;
     return [this._numberFormat(d).format(Math.abs(isK ? v / 1000 : v)), isK ? "kW" : "W"];
   }
 
   _fmt(v) {
     const [num, unit] = this._powerParts(v);
-    return `${num}${PSC_THIN_SPACE}${unit}`;
+    return `${num}${SPF_THIN_SPACE}${unit}`;
   }
 
   /* like _fmt, with the unit in its own span (muted, smaller) */
   _fmtHtml(v) {
     const [num, unit] = this._powerParts(v);
-    return `${num}<span class="unit">${PSC_THIN_SPACE}${unit}</span>`;
+    return `${num}<span class="unit">${SPF_THIN_SPACE}${unit}</span>`;
   }
 
   _socHtml(soc) {
-    return `${this._numberFormat(PSC_FIXED.socDecimals).format(soc)}<span class="unit">${PSC_THIN_SPACE}%</span>`;
+    return `${this._numberFormat(SPF_FIXED.socDecimals).format(soc)}<span class="unit">${SPF_THIN_SPACE}%</span>`;
   }
 
   /* daily energy, shown in kWh (Wh is converted) */
@@ -474,25 +474,25 @@ class PowerSankeyCard extends HTMLElement {
       val = v / 1000;
       unit = "kWh";
     }
-    return { num: this._numberFormat(PSC_FIXED.yieldDecimals).format(val), unit };
+    return { num: this._numberFormat(SPF_FIXED.yieldDecimals).format(val), unit };
   }
 
   /* fonts as CSS variables on the card */
   _applyTypography() {
     const px = (k) => `${this._fontPx(k).toFixed(1)}px`;
     const vars = {
-      "--psc-val-fs": px("value"),
-      "--psc-unit-fs": px("unit"),
-      "--psc-name-fs": px("name"),
-      "--psc-ghost-fs": px("ghost"),
-      "--psc-dev-nm-fs": px("deviceName"),
-      "--psc-dev-v-fs": px("deviceValue"),
-      "--psc-yl": px("yieldLabel"),
-      "--psc-yv": px("yieldValue"),
-      "--psc-yu": px("yieldUnit"),
-      "--psc-val-fw": String(PSC_FONT.valueWeight),
-      "--psc-text-fw": String(PSC_FONT.textWeight),
-      "--psc-label-fw": String(PSC_FONT.labelWeight),
+      "--spf-val-fs": px("value"),
+      "--spf-unit-fs": px("unit"),
+      "--spf-name-fs": px("name"),
+      "--spf-ghost-fs": px("ghost"),
+      "--spf-dev-nm-fs": px("deviceName"),
+      "--spf-dev-v-fs": px("deviceValue"),
+      "--spf-yl": px("yieldLabel"),
+      "--spf-yv": px("yieldValue"),
+      "--spf-yu": px("yieldUnit"),
+      "--spf-val-fw": String(SPF_FONT.valueWeight),
+      "--spf-text-fw": String(SPF_FONT.textWeight),
+      "--spf-label-fw": String(SPF_FONT.labelWeight),
     };
     const css = Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(";");
     if (this._card.getAttribute("style") !== css) this._card.setAttribute("style", css);
@@ -500,7 +500,7 @@ class PowerSankeyCard extends HTMLElement {
 
   /* seconds a dot needs for one band: fast at max_power, slow at small power */
   _flowRate(v) {
-    const { minFlowRate: minR, maxFlowRate: maxR } = PSC_FIXED;
+    const { minFlowRate: minR, maxFlowRate: maxR } = SPF_FIXED;
     const maxP = this._optNum("max_power", { positive: true });
     const r = v >= maxP ? minR : maxR - (v / maxP) * (maxR - minR);
     return Number.isFinite(r) && r > 0.1 ? r : maxR;
@@ -512,7 +512,7 @@ class PowerSankeyCard extends HTMLElement {
     const show = !this._forecastShown;
     this._stopForecast();
     this._forecastShown = show;
-    if (show) this._forecastTimer = setTimeout(() => this._toggleForecast(), PSC_FIXED.forecastSeconds * 1000);
+    if (show) this._forecastTimer = setTimeout(() => this._toggleForecast(), SPF_FIXED.forecastSeconds * 1000);
     if (this._parts) this._renderYield();
   }
 
@@ -538,7 +538,7 @@ class PowerSankeyCard extends HTMLElement {
     const soc = c.battery?.soc ? this._number(c.battery.soc) : null;
 
     const consumption = Math.max(fromGrid + solar + batOut - toGrid - batIn, 0);
-    const flows = pscAllocate(solar, batOut, fromGrid, consumption, batIn, toGrid);
+    const flows = spfAllocate(solar, batOut, fromGrid, consumption, batIn, toGrid);
     const home = flows.solarToHome + flows.batteryToHome + flows.gridToHome;
 
     /* devices: visible from their min_power on */
@@ -549,7 +549,7 @@ class PowerSankeyCard extends HTMLElement {
         if (v === 0 || Math.abs(v) < this._min(d)) return null;
         return {
           key: `dev${i}`, cfg: d, v,
-          color: d.color || PSC_DEVICE_COLORS[i % PSC_DEVICE_COLORS.length],
+          color: d.color || SPF_DEVICE_COLORS[i % SPF_DEVICE_COLORS.length],
           icon: d.icon || "mdi:flash",
           name: (d.name || "").trim(),
         };
@@ -565,7 +565,7 @@ class PowerSankeyCard extends HTMLElement {
       rest -= d.load;
     }
     if (nodeDevices.length) {
-      const parts = pscSplitHome([flows.solarToHome, flows.batteryToHome, flows.gridToHome], [rest, ...nodeDevices.map((d) => d.load)]);
+      const parts = spfSplitHome([flows.solarToHome, flows.batteryToHome, flows.gridToHome], [rest, ...nodeDevices.map((d) => d.load)]);
       [flows.solarToHome, flows.batteryToHome, flows.gridToHome] = parts[0];
       nodeDevices.forEach((d, i) => {
         [d.fromSolar, d.fromBattery, d.fromGrid] = parts[i + 1];
@@ -596,7 +596,7 @@ class PowerSankeyCard extends HTMLElement {
     const W = Math.max((this._width || this.getBoundingClientRect().width || 400) - 32, 240);
 
     const { left, right } = this._buildNodes(m);
-    const links = PSC_LINKS.map(([s, t, key]) => [s, t, m.flows[key]]);
+    const links = SPF_LINKS.map(([s, t, key]) => [s, t, m.flows[key]]);
     for (const d of m.nodeDevices) links.push(["solar", d.key, d.fromSolar], ["batOut", d.key, d.fromBattery], ["gridIn", d.key, d.fromGrid]);
     const { L, R, flows } = this._linkNodes(left, right, links);
 
@@ -616,23 +616,23 @@ class PowerSankeyCard extends HTMLElement {
     const right = [];
 
     if (m.has.solar) {
-      left.push({ key: "solar", act: "solar", v: m.solar, color: PSC_COLORS.solar, cfg: c.solar, entity: c.solar.power,
+      left.push({ key: "solar", act: "solar", v: m.solar, color: SPF_COLORS.solar, cfg: c.solar, entity: c.solar.power,
         icon: c.solar.icon || "mdi:solar-power", name: name(c.solar) });
     }
     if (m.has.battery) {
       const b = c.battery;
-      const icon = b.icon || pscSocIcon(m.soc);
-      left.push({ key: "batOut", act: "battery", v: m.batOut, color: PSC_COLORS.batOut, cfg: b, entity: b.power, icon, name: name(b) });
-      right.push({ key: "batIn", act: "battery", v: m.batIn, color: PSC_COLORS.batIn, cfg: b, entity: b.power, icon, name: name(b) });
+      const icon = b.icon || spfSocIcon(m.soc);
+      left.push({ key: "batOut", act: "battery", v: m.batOut, color: SPF_COLORS.batOut, cfg: b, entity: b.power, icon, name: name(b) });
+      right.push({ key: "batIn", act: "battery", v: m.batIn, color: SPF_COLORS.batIn, cfg: b, entity: b.power, icon, name: name(b) });
     }
     if (m.has.grid) {
       const g = c.grid;
       const icon = g.icon || "mdi:transmission-tower";
-      left.push({ key: "gridIn", act: "grid", v: m.fromGrid, color: PSC_COLORS.gridIn, cfg: g, entity: g.power, icon, name: name(g) });
-      right.push({ key: "gridOut", act: "grid", v: m.toGrid, color: PSC_COLORS.gridOut, cfg: g, entity: g.power, icon, name: name(g) });
+      left.push({ key: "gridIn", act: "grid", v: m.fromGrid, color: SPF_COLORS.gridIn, cfg: g, entity: g.power, icon, name: name(g) });
+      right.push({ key: "gridOut", act: "grid", v: m.toGrid, color: SPF_COLORS.gridOut, cfg: g, entity: g.power, icon, name: name(g) });
     }
     const h = c.home || {};
-    right.unshift({ key: "home", act: "home", v: m.home, color: PSC_COLORS.home, cfg: h, entity: null,
+    right.unshift({ key: "home", act: "home", v: m.home, color: SPF_COLORS.home, cfg: h, entity: null,
       icon: h.icon || "mdi:home", name: name(h), forceShow: true });
     m.nodeDevices.forEach((d, i) => {
       right.splice(1 + i, 0, { key: d.key, act: d.key, v: d.load, color: d.color, cfg: d.cfg, entity: d.cfg.power,
@@ -672,10 +672,10 @@ class PowerSankeyCard extends HTMLElement {
     const show = m.has.battery && m.soc !== null;
     B.classList.toggle("left", this._opt("badge_position") === "top-left");
     B.classList.toggle("bg", this._opt("badge_background") === true);
-    B.style.setProperty("--psc-td", `${this._transitionMs()}ms`);
+    B.style.setProperty("--spf-td", `${this._transitionMs()}ms`);
     if (show) {
       const clickable = this._bindAction("badge", c.battery, c.battery.soc);
-      this._setHtml(B, `<ha-icon icon="${pscEsc(c.battery.icon || pscSocIcon(m.soc))}"></ha-icon><span>${this._socHtml(m.soc)}</span>`);
+      this._setHtml(B, `<ha-icon icon="${spfEsc(c.battery.icon || spfSocIcon(m.soc))}"></ha-icon><span>${this._socHtml(m.soc)}</span>`);
       if (clickable) B.dataset.act = "badge";
       else delete B.dataset.act;
       B.classList.toggle("clickable", clickable);
@@ -685,12 +685,12 @@ class PowerSankeyCard extends HTMLElement {
   }
 
   /* Room the labels on the badge side keep free at the top of the band area (in px from
-     its top edge): badge bottom plus PSC_FIXED.badgeGap. 0 while the badge is hidden. */
+     its top edge): badge bottom plus SPF_FIXED.badgeGap. 0 while the badge is hidden. */
   _badgeClearance() {
     if (!this._badgeSide) return 0;
     const B = this._parts.badge;
     if (!B.offsetHeight) return 0;
-    return Math.max(0, B.offsetTop + B.offsetHeight + PSC_FIXED.badgeGap - this._parts.sankey.offsetTop);
+    return Math.max(0, B.offsetTop + B.offsetHeight + SPF_FIXED.badgeGap - this._parts.sankey.offsetTop);
   }
 
   /* device list and yield bar */
@@ -725,9 +725,9 @@ class PowerSankeyCard extends HTMLElement {
       P.yieldBar.classList.toggle("tappable", hasForecast);
       this._setHtml(P.yieldBar,
         `<span class="yswap${anim ? " anim" : ""}">` +
-        `<ha-icon icon="${icon}" style="color:${PSC_COLORS.solar}"></ha-icon>` +
-        `<span class="ylabel">${pscEsc(this._t(mode))}</span>` +
-        `<span class="yval">${show.num}<span class="yunit">${pscEsc(show.unit)}</span></span></span>`);
+        `<ha-icon icon="${icon}" style="color:${SPF_COLORS.solar}"></ha-icon>` +
+        `<span class="ylabel">${spfEsc(this._t(mode))}</span>` +
+        `<span class="yval">${show.num}<span class="yunit">${spfEsc(show.unit)}</span></span></span>`);
     } else {
       this._setHtml(P.yieldBar, "");
     }
@@ -760,7 +760,7 @@ class PowerSankeyCard extends HTMLElement {
     const badgeClear = this._badgeClearance();
     const padTo = Math.max(this._parts.sankey.clientHeight, 80);
     const maxT = Math.max(padTo - 16 - badgeClear, 40);
-    const minT = Math.min(PSC_FIXED.minFlowHeight, maxT);
+    const minT = Math.min(SPF_FIXED.minFlowHeight, maxT);
     const T = minT + (maxT - minT) * ratio;
     return { flows: values, flowMeta, nodes, T, padTo, W, totalLines: flowSum, badgeClear, badgeSide: this._badgeSide };
   }
@@ -841,7 +841,7 @@ class PowerSankeyCard extends HTMLElement {
 
   /* true when no band changes by at least transition_threshold watts and nothing appears or disappears */
   _isMinorChange(from, to) {
-    const th = PSC_FIXED.transitionThreshold;
+    const th = SPF_FIXED.transitionThreshold;
     if (th <= 0) return false;
     const sameKeys = (a, b) => Object.keys(a).sort().join() === Object.keys(b).sort().join();
     if (!sameKeys(from.flows, to.flows) || !sameKeys(from.nodes, to.nodes)) return false;
@@ -918,20 +918,20 @@ class PowerSankeyCard extends HTMLElement {
   /* ----- drawing one frame ----- */
 
   _columns(W) {
-    const NW = PSC_GEOMETRY.nodeWidth;
-    const leftX = Math.round(W * PSC_GEOMETRY.leftColumn);
-    const rightX = Math.round(W * PSC_GEOMETRY.rightColumn) - NW;
+    const NW = SPF_GEOMETRY.nodeWidth;
+    const leftX = Math.round(W * SPF_GEOMETRY.leftColumn);
+    const rightX = Math.round(W * SPF_GEOMETRY.rightColumn) - NW;
     return { NW, leftX, rightX, x0: leftX + NW, x1: rightX, mid: (leftX + NW + rightX) / 2 };
   }
 
   /* geometry of one frame: node bars, band slots, label positions */
   _layout(frame, meta) {
-    const { nodeGap: G, ghostHeight: GH, minBand: MINB, minFlowArea } = PSC_GEOMETRY;
+    const { nodeGap: G, ghostHeight: GH, minBand: MINB, minFlowArea } = SPF_GEOMETRY;
     const T = frame.T;
     const nodes = {};
     for (const k of Object.keys(frame.presence)) {
       const n = meta[k].n;
-      nodes[k] = { key: k, side: meta[k].side, order: n.order ?? PSC_ORDER[k], ghost: n.ghost, color: n.color, name: n.name, p: frame.presence[k], flows: [] };
+      nodes[k] = { key: k, side: meta[k].side, order: n.order ?? SPF_ORDER[k], ghost: n.ghost, color: n.color, name: n.name, p: frame.presence[k], flows: [] };
     }
     const flows = [];
     for (const [k, f] of Object.entries(frame.flows)) {
@@ -1047,7 +1047,7 @@ class PowerSankeyCard extends HTMLElement {
      small node and the other node keeps its true size. If a side then needs more room
      than it has, the scale is reduced and the step repeated. */
   _bandThickness(flows, nodes, scale, roomL, roomR) {
-    const MINB = PSC_GEOMETRY.minBand;
+    const MINB = SPF_GEOMETRY.minBand;
     const minNode = this._optNum("min_node_height", { min: 0 });
     let sc = scale;
     for (let pass = 0; pass < 4; pass++) {
@@ -1084,13 +1084,13 @@ class PowerSankeyCard extends HTMLElement {
     for (const f of g.flows) {
       const gid = `${this._uid}g${f.key.replace(">", "_")}`;
       defs += `<linearGradient id="${gid}" gradientUnits="userSpaceOnUse" x1="${g.x0}" y1="0" x2="${g.x1}" y2="0">` +
-        `<stop offset="0" style="stop-color:${pscEsc(f.sColor)};stop-opacity:.42"></stop>` +
-        `<stop offset="1" style="stop-color:${pscEsc(f.tColor)};stop-opacity:.3"></stop></linearGradient>`;
+        `<stop offset="0" style="stop-color:${spfEsc(f.sColor)};stop-opacity:.42"></stop>` +
+        `<stop offset="1" style="stop-color:${spfEsc(f.tColor)};stop-opacity:.3"></stop></linearGradient>`;
       bands += `<path d="M${g.x0},${f.s0} C${g.mid},${f.s0} ${g.mid},${f.t0} ${g.x1},${f.t0} L${g.x1},${f.t1} C${g.mid},${f.t1} ${g.mid},${f.s1} ${g.x0},${f.s1} Z" fill="url(#${gid})" style="opacity:${f.p.toFixed(3)}"></path>`;
     }
     const bar = (n, x) => {
       const ghost = !n.flows.length;
-      return `<rect x="${x}" y="${n.y}" width="${g.NW}" height="${n.h}" rx="${Math.min(3, n.h / 2)}" style="fill:${pscEsc(ghost ? ghostCol : n.color)};opacity:${((ghost ? 0.5 : 1) * n.p).toFixed(3)}"></rect>`;
+      return `<rect x="${x}" y="${n.y}" width="${g.NW}" height="${n.h}" rx="${Math.min(3, n.h / 2)}" style="fill:${spfEsc(ghost ? ghostCol : n.color)};opacity:${((ghost ? 0.5 : 1) * n.p).toFixed(3)}"></rect>`;
     };
     const bars = g.L.map((n) => bar(n, g.leftX)).join("") + g.R.map((n) => bar(n, g.rightX)).join("");
 
@@ -1146,16 +1146,16 @@ class PowerSankeyCard extends HTMLElement {
       seen.add(f.key);
       const sc = (f.s0 + f.s1) / 2;
       const tc = (f.t0 + f.t1) / 2;
-      const pts = pscSampleBezier([g.x0, sc], [g.mid, sc], [g.mid, tc], [g.x1, tc], PSC_GEOMETRY.dotSamples);
+      const pts = spfSampleBezier([g.x0, sc], [g.mid, sc], [g.mid, tc], [g.x1, tc], SPF_GEOMETRY.dotSamples);
       const dur = this._flowRate(f.v, totalLines);
-      const n = Math.max(1, Math.round((g.x1 - g.x0) / PSC_GEOMETRY.dotSpacing));
+      const n = Math.max(1, Math.round((g.x1 - g.x0) / SPF_GEOMETRY.dotSpacing));
       const r = Math.min(2.6, Math.max(1.2, Math.min(f.hs, f.ht) / 2));
       const phases = this._dotPhases(f.key, dur, n, now);
-      const base = `width:${2 * r}px;height:${2 * r}px;background:${pscEsc(f.sColor)};`;
+      const base = `width:${2 * r}px;height:${2 * r}px;background:${spfEsc(f.sColor)};`;
       if (mode === "js") {
         const op = f.p < 1 ? `opacity:${f.p.toFixed(3)};` : "";
         for (const ph of phases) {
-          const [px, py] = pscPointAt(pts, ph);
+          const [px, py] = spfPointAt(pts, ph);
           styles.push(`${base}${op}transform:translate(${(px - r).toFixed(1)}px,${(py - r).toFixed(1)}px)`);
         }
       } else {
@@ -1191,14 +1191,14 @@ class PowerSankeyCard extends HTMLElement {
 
   /* only touch the DOM when the markup really changed (keeps ha-icon elements alive) */
   _setHtml(el, html) {
-    if (el._pscHtml === html) return;
+    if (el._spfHtml === html) return;
     el.innerHTML = html;
-    el._pscHtml = html;
+    el._spfHtml = html;
   }
 
   _labelHtml(n, side, W) {
     const { leftX, rightX, NW } = this._columns(W);
-    const { labelOffset } = PSC_GEOMETRY;
+    const { labelOffset } = SPF_GEOMETRY;
     const clickable = this._bindAction(n.act, n.cfg, n.entity);
     const style = side === "left"
       ? `right:${W - leftX + labelOffset}px;max-width:${leftX - 12}px`
@@ -1206,20 +1206,20 @@ class PowerSankeyCard extends HTMLElement {
     const tag = clickable ? "button" : "div";
     const attrs = clickable ? ` type="button" data-act="${n.act}"` : "";
     return `<${tag} data-k="${n.key}" class="lbl ${side}${n.ghost ? " ghost" : ""}${clickable ? " clickable" : ""}" style="${style}"${attrs}>` +
-      (n.name ? `<span class="name">${pscEsc(n.name)}</span>` : "") +
-      `<span class="val"><ha-icon icon="${pscEsc(n.icon)}"></ha-icon><span>${this._fmtHtml(n.v)}</span></span>` +
+      (n.name ? `<span class="name">${spfEsc(n.name)}</span>` : "") +
+      `<span class="val"><ha-icon icon="${spfEsc(n.icon)}"></ha-icon><span>${this._fmtHtml(n.v)}</span></span>` +
       `</${tag}>`;
   }
 
   _rowHtml(d, base) {
     const clickable = this._bindAction(d.key, d.cfg, d.cfg.power);
-    const pct = pscClamp((Math.abs(d.v) / base) * 100, 0, 100);
+    const pct = spfClamp((Math.abs(d.v) / base) * 100, 0, 100);
     const tag = clickable ? "button" : "div";
     const attrs = clickable ? ` type="button" data-act="${d.key}"` : "";
     return `<${tag} class="row${clickable ? " clickable" : ""}"${attrs}>` +
-      `<ha-icon icon="${pscEsc(d.icon)}"></ha-icon>` +
-      `<span class="mid">${d.name ? `<span class="nm">${pscEsc(d.name)}</span>` : ""}` +
-      `<span class="bar"><span style="width:${pct.toFixed(1)}%;background:${pscEsc(d.color)}"></span></span></span>` +
+      `<ha-icon icon="${spfEsc(d.icon)}"></ha-icon>` +
+      `<span class="mid">${d.name ? `<span class="nm">${spfEsc(d.name)}</span>` : ""}` +
+      `<span class="bar"><span style="width:${pct.toFixed(1)}%;background:${spfEsc(d.color)}"></span></span></span>` +
       `<span class="v">${this._fmt(d.v)}</span>` +
       `</${tag}>`;
   }
@@ -1288,7 +1288,7 @@ class PowerSankeyCard extends HTMLElement {
 
 /* ---------- 4. visual editor ---------- */
 
-const PSC_EDITOR_I18N = {
+const SPF_EDITOR_I18N = {
   de: {
     solar: "Solar", battery: "Batterie", grid: "Netz", home: "Haus", devices: "Geräte", display: "Darstellung",
     power: "Leistung", invert: "Vorzeichen umkehren", soc: "Ladestand", icon: "Icon", name: "Name",
@@ -1340,21 +1340,21 @@ const PSC_EDITOR_I18N = {
 };
 
 /* keys whose value false is the default and is left out of the YAML */
-const PSC_FALSE_DEFAULTS = new Set(["invert", "as_node", "badge_background"]);
+const SPF_FALSE_DEFAULTS = new Set(["invert", "as_node", "badge_background"]);
 
 /* Removes empty values, so the YAML only holds what was set. Device entries are kept. */
-function pscClean(obj) {
-  if (Array.isArray(obj)) return obj.map((v) => (v && typeof v === "object" ? pscClean(v) : v));
+function spfClean(obj) {
+  if (Array.isArray(obj)) return obj.map((v) => (v && typeof v === "object" ? spfClean(v) : v));
   const out = {};
   for (const [k, v] of Object.entries(obj)) {
     if (v === undefined || v === null || v === "") continue;
-    if (v === false && PSC_FALSE_DEFAULTS.has(k)) continue;
+    if (v === false && SPF_FALSE_DEFAULTS.has(k)) continue;
     if (v && typeof v === "object" && !Array.isArray(v)) {
-      const c = pscClean(v);
+      const c = spfClean(v);
       if (Object.keys(c).length) out[k] = c;
       continue;
     }
-    out[k] = Array.isArray(v) ? pscClean(v) : v;
+    out[k] = Array.isArray(v) ? spfClean(v) : v;
   }
   return out;
 }
@@ -1363,7 +1363,7 @@ function pscClean(obj) {
    and tap actions look and work like in the built-in cards. One form for everything except
    the devices, plus one form per device. Forms are created once and only get new data,
    so nothing loses focus while typing. */
-class PowerSankeyCardEditor extends HTMLElement {
+class SleekPowerFlowCardEditor extends HTMLElement {
   setConfig(config) {
     this._config = config || {};
     this._render();
@@ -1396,7 +1396,7 @@ class PowerSankeyCardEditor extends HTMLElement {
 
   _t(key) {
     const lang = (this._hass?.locale?.language || this._hass?.language || "en").slice(0, 2);
-    return (PSC_EDITOR_I18N[lang] || PSC_EDITOR_I18N.en)[key] ?? key;
+    return (SPF_EDITOR_I18N[lang] || SPF_EDITOR_I18N.en)[key] ?? key;
   }
 
   _forms() {
@@ -1504,7 +1504,7 @@ class PowerSankeyCardEditor extends HTMLElement {
   _build(count) {
     const R = this.shadowRoot;
     const open = new Set([...R.querySelectorAll(".dev")].filter((d) => d.open).map((d) => Number(d.dataset.i)));
-    R.innerHTML = `<style>${PowerSankeyCardEditor.styles}</style>` +
+    R.innerHTML = `<style>${SleekPowerFlowCardEditor.styles}</style>` +
       `<ha-form class="main"></ha-form>` +
       `<div class="section"><ha-icon icon="mdi:power-plug-outline"></ha-icon><span>${this._t("devices")}</span></div>` +
       `<div class="devs"></div>` +
@@ -1565,9 +1565,9 @@ class PowerSankeyCardEditor extends HTMLElement {
   /* keeps the YAML in a readable order: sources, devices, display, then everything else */
   _commit(config) {
     const { type, ...rest } = config;
-    const cleaned = pscClean(rest);
+    const cleaned = spfClean(rest);
     if (!cleaned.devices || !cleaned.devices.length) delete cleaned.devices;
-    const order = ["solar", "battery", "grid", "home", "devices", ...Object.keys(PSC_DEFAULTS), "tap_action"];
+    const order = ["solar", "battery", "grid", "home", "devices", ...Object.keys(SPF_DEFAULTS), "tap_action"];
     const clean = { type };
     for (const k of order) if (k in cleaned) clean[k] = cleaned[k];
     for (const k of Object.keys(cleaned)) if (!(k in clean)) clean[k] = cleaned[k];
@@ -1577,7 +1577,7 @@ class PowerSankeyCardEditor extends HTMLElement {
   }
 }
 
-PowerSankeyCardEditor.styles = `
+SleekPowerFlowCardEditor.styles = `
 :host { display: block; }
 .section { display: flex; align-items: center; gap: 12px; margin: 24px 0 8px; font-size: 16px; font-weight: 400; color: var(--primary-text-color); }
 .section ha-icon { color: var(--secondary-text-color); }
@@ -1599,7 +1599,7 @@ PowerSankeyCardEditor.styles = `
 
 /* ---------- 5. styles and registration ---------- */
 
-PowerSankeyCard.styles = `
+SleekPowerFlowCard.styles = `
 :host { display: block; }
 ha-card { display: block; font-family: Roboto, var(--ha-font-family-body, var(--paper-font-body1_-_font-family)), Noto, sans-serif; overflow: hidden; }
 .main { position: relative; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-sizing: border-box; }
@@ -1609,7 +1609,7 @@ ha-card { display: block; font-family: Roboto, var(--ha-font-family-body, var(--
 .main.tappable .list { cursor: default; }
 .main.tappable .list .clickable { cursor: pointer; }
 [hidden] { display: none !important; }
-.hint { font-size: 14px; font-weight: var(--psc-text-fw, 300); line-height: 1.4; color: var(--secondary-text-color); }
+.hint { font-size: 14px; font-weight: var(--spf-text-fw, 300); line-height: 1.4; color: var(--secondary-text-color); }
 .clickable { cursor: pointer; border-radius: 8px; }
 .clickable:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
 
@@ -1624,25 +1624,25 @@ ha-card { display: block; font-family: Roboto, var(--ha-font-family-body, var(--
 .lbl { position: absolute; display: flex; flex-direction: column; gap: 1px; padding: 0; margin: 0;
   background: none; border: 0; color: var(--primary-text-color); font: inherit; text-align: left; line-height: 1.2; }
 .lbl.left { align-items: flex-end; text-align: right; }
-.lbl .name { font-size: var(--psc-name-fs, 12px); font-weight: var(--psc-text-fw, 300); color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.lbl .val { display: inline-flex; align-items: center; gap: 6px; font-size: var(--psc-val-fs, 18px); font-weight: var(--psc-val-fw, 300); white-space: nowrap; }
-.lbl .unit { font-size: var(--psc-unit-fs, 14px); font-weight: var(--psc-text-fw, 300); color: var(--secondary-text-color); }
+.lbl .name { font-size: var(--spf-name-fs, 12px); font-weight: var(--spf-text-fw, 300); color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.lbl .val { display: inline-flex; align-items: center; gap: 6px; font-size: var(--spf-val-fs, 18px); font-weight: var(--spf-val-fw, 300); white-space: nowrap; }
+.lbl .unit { font-size: var(--spf-unit-fs, 14px); font-weight: var(--spf-text-fw, 300); color: var(--secondary-text-color); }
 .lbl.left .val { flex-direction: row-reverse; }
-.lbl.ghost .val { font-size: var(--psc-ghost-fs, 14px); color: var(--secondary-text-color); }
+.lbl.ghost .val { font-size: var(--spf-ghost-fs, 14px); color: var(--secondary-text-color); }
 .lbl.ghost .unit { font-size: inherit; }
 .lbl ha-icon { --mdc-icon-size: 24px; color: var(--secondary-text-color); }
 
 /* battery badge */
 .badge { position: absolute; top: 12px; right: 12px; z-index: 1; display: flex; align-items: center; gap: 6px;
   padding: 5px 12px 5px 9px; border-radius: 999px; background: none;
-  color: var(--primary-text-color); font-size: var(--psc-val-fs, 18px); font-weight: var(--psc-val-fw, 300); line-height: 1; white-space: nowrap;
+  color: var(--primary-text-color); font-size: var(--spf-val-fs, 18px); font-weight: var(--spf-val-fw, 300); line-height: 1; white-space: nowrap;
   opacity: 0; visibility: hidden; pointer-events: none;
-  transition: opacity var(--psc-td, 600ms) ease, visibility 0s linear var(--psc-td, 600ms); }
+  transition: opacity var(--spf-td, 600ms) ease, visibility 0s linear var(--spf-td, 600ms); }
 .badge.bg { background: rgba(128,128,128,0.12); }
 .badge.left { right: auto; left: 12px; }
-.badge.show { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity var(--psc-td, 600ms) ease, visibility 0s; }
+.badge.show { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity var(--spf-td, 600ms) ease, visibility 0s; }
 .badge ha-icon { --mdc-icon-size: 24px; color: var(--secondary-text-color); }
-.badge .unit { font-size: var(--psc-unit-fs, 14px); font-weight: var(--psc-text-fw, 300); color: var(--secondary-text-color); }
+.badge .unit { font-size: var(--spf-unit-fs, 14px); font-weight: var(--spf-text-fw, 300); color: var(--secondary-text-color); }
 
 /* device list */
 .list { display: flex; flex-direction: column; gap: 2px; border-top: 1px solid rgba(128,128,128,0.2); padding-top: 8px; }
@@ -1650,38 +1650,38 @@ ha-card { display: block; font-family: Roboto, var(--ha-font-family-body, var(--
   box-sizing: border-box; width: 100%; padding: 0 2px; margin: 0; background: none; border: 0; color: var(--primary-text-color); font: inherit; text-align: left; }
 .row ha-icon { --mdc-icon-size: 24px; color: var(--secondary-text-color); }
 .row .mid { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.row .nm { font-size: var(--psc-dev-nm-fs, 14px); font-weight: var(--psc-text-fw, 300); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .nm { font-size: var(--spf-dev-nm-fs, 14px); font-weight: var(--spf-text-fw, 300); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bar { display: block; height: 6px; border-radius: 3px; background: rgba(128,128,128,0.2); overflow: hidden; }
 .bar > span { display: block; height: 100%; border-radius: 3px; }
-.row .v { font-size: var(--psc-dev-v-fs, 14px); font-weight: var(--psc-val-fw, 300); min-width: 64px; text-align: right; white-space: nowrap; }
+.row .v { font-size: var(--spf-dev-v-fs, 14px); font-weight: var(--spf-val-fw, 300); min-width: 64px; text-align: right; white-space: nowrap; }
 
 /* yield bar */
 .yield { flex: none; display: flex; align-items: center; gap: 12px; height: 56px; box-sizing: border-box;
   margin: 0 -16px -16px; padding: 0 16px; border-top: 1px solid rgba(128,128,128,0.2); }
 .yield.tappable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .yswap { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 12px; }
-.yswap.anim { animation: psc-yfade 250ms ease-out; }
-@keyframes psc-yfade { from { opacity: 0; } to { opacity: 1; } }
+.yswap.anim { animation: spf-yfade 250ms ease-out; }
+@keyframes spf-yfade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .yswap.anim { animation: none; } }
 .yield ha-icon { --mdc-icon-size: 22px; flex: none; }
-.yield .ylabel { flex: 1 1 auto; min-width: 0; font-size: var(--psc-yl, 14px); font-weight: var(--psc-label-fw, 400); letter-spacing: 0.08em; text-transform: uppercase;
+.yield .ylabel { flex: 1 1 auto; min-width: 0; font-size: var(--spf-yl, 14px); font-weight: var(--spf-label-fw, 400); letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.yield .yval { flex: none; font-size: var(--psc-yv, 18px); font-weight: var(--psc-val-fw, 300); color: var(--primary-text-color); white-space: nowrap; }
-.yield .yunit { margin-left: 4px; font-size: var(--psc-yu, 14px); font-weight: var(--psc-text-fw, 300); color: var(--secondary-text-color); }
+.yield .yval { flex: none; font-size: var(--spf-yv, 18px); font-weight: var(--spf-val-fw, 300); color: var(--primary-text-color); white-space: nowrap; }
+.yield .yunit { margin-left: 4px; font-size: var(--spf-yu, 14px); font-weight: var(--spf-text-fw, 300); color: var(--secondary-text-color); }
 `;
 
-if (!customElements.get("power-sankey-card-editor")) {
-  customElements.define("power-sankey-card-editor", PowerSankeyCardEditor);
+if (!customElements.get("sleek-power-flow-card-editor")) {
+  customElements.define("sleek-power-flow-card-editor", SleekPowerFlowCardEditor);
 }
 
-if (!customElements.get("power-sankey-card")) {
-  customElements.define("power-sankey-card", PowerSankeyCard);
+if (!customElements.get("sleek-power-flow-card")) {
+  customElements.define("sleek-power-flow-card", SleekPowerFlowCard);
   window.customCards = window.customCards || [];
   window.customCards.push({
-    type: "power-sankey-card",
-    name: "Power Sankey Card",
+    type: "sleek-power-flow-card",
+    name: "Sleek Power Flow",
     description: "Power flow between solar, battery, grid and home as a Sankey diagram",
     preview: true,
   });
-  console.info(`%c POWER-SANKEY-CARD %c ${PSC_VERSION} `, "background:#ff9800;color:#000;font-weight:600", "background:#333;color:#fff");
+  console.info(`%c SLEEK-POWER-FLOW %c ${SPF_VERSION} `, "background:#ff9800;color:#000;font-weight:600", "background:#333;color:#fff");
 }

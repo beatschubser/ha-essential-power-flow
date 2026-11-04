@@ -13,10 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Check syntax
-        run: node --check power-sankey-card.js
+        run: node --check sleek-power-flow-card.js
       - name: Check that the changelog has an entry for the version
         run: |
-          v=$(sed -nE 's/^const PSC_VERSION = "([^"]+)".*/\1/p' power-sankey-card.js)
+          v=$(sed -nE 's/^const SPF_VERSION = "([^"]+)".*/\1/p' sleek-power-flow-card.js)
           echo "card=$v"
           grep -q "^## $v\$" CHANGELOG.md || { echo "::error::CHANGELOG.md has no section '## $v'"; exit 1; }
 

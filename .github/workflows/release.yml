@@ -1,6 +1,6 @@
 name: Release
 
-# Creates a GitHub release whenever PSC_VERSION in the card changes on main.
+# Creates a GitHub release whenever SPF_VERSION in the card changes on main.
 # The release notes are the matching section of CHANGELOG.md.
 # Versions with a suffix (e.g. 1.0.0-beta.1) become pre-releases, which HACS only
 # offers to users who enabled beta versions for this repository.
@@ -9,7 +9,7 @@ on:
   push:
     branches: [main]
     paths:
-      - power-sankey-card.js
+      - sleek-power-flow-card.js
   workflow_dispatch:
 
 permissions:
@@ -37,7 +37,7 @@ jobs:
         id: version
         run: |
           set -euo pipefail
-          v=$(sed -nE 's/^const PSC_VERSION = "([^"]+)".*/\1/p' power-sankey-card.js)
+          v=$(sed -nE 's/^const SPF_VERSION = "([^"]+)".*/\1/p' sleek-power-flow-card.js)
           echo "version=$v" >> "$GITHUB_OUTPUT"
           if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
@@ -68,4 +68,4 @@ jobs:
           v=${{ steps.version.outputs.version }}
           flags=()
           if [ "${{ steps.version.outputs.prerelease }}" = "true" ]; then flags+=(--prerelease); fi
-          gh release create "v$v" power-sankey-card.js --target "$GITHUB_SHA" --title "$v" --notes-file notes.md "${flags[@]}"
+          gh release create "v$v" sleek-power-flow-card.js --target "$GITHUB_SHA" --title "$v" --notes-file notes.md "${flags[@]}"
