@@ -16,9 +16,6 @@
 
 ## Features
 
-> [!NOTE]
-> All features are based on my own ideas, but the code is 100% AI-generated. I just want to be transparent about that.
-
 - Bands show at a glance where the power comes from and where it goes. Their thickness is proportional to the power, and they never cross.
 - Battery and grid switch sides with their direction: discharging and import on the left, charging and export on the right.
 - Changes fade smoothly, moving dots show the direction and get faster with more power.
