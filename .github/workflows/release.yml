@@ -1,0 +1,71 @@
+name: Release
+
+# Creates a GitHub release whenever PSC_VERSION in the card changes on main.
+# The release notes are the matching section of CHANGELOG.md.
+# Versions with a suffix (e.g. 1.0.0-beta.1) become pre-releases, which HACS only
+# offers to users who enabled beta versions for this repository.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - power-sankey-card.js
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate
+    uses: ./.github/workflows/validate.yml
+
+  release:
+    name: Create release
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Read version
+        id: version
+        run: |
+          set -euo pipefail
+          v=$(sed -nE 's/^const PSC_VERSION = "([^"]+)".*/\1/p' power-sankey-card.js)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release v$v already exists, nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "$v" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Write release notes
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          set -euo pipefail
+          # the section "## <version>" of CHANGELOG.md, without its heading
+          awk -v v="${{ steps.version.outputs.version }}" '
+            $0 == "## " v { on = 1; next }
+            /^## / && on { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          cat notes.md
+
+      - name: Create release
+        if: steps.version.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          v=${{ steps.version.outputs.version }}
+          flags=()
+          if [ "${{ steps.version.outputs.prerelease }}" = "true" ]; then flags+=(--prerelease); fi
+          gh release create "v$v" power-sankey-card.js --target "$GITHUB_SHA" --title "$v" --notes-file notes.md "${flags[@]}"

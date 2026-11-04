@@ -1,0 +1,32 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:  # used by release.yml, so a release only happens when everything passes
+
+jobs:
+  card:
+    name: Card
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check syntax
+        run: node --check power-sankey-card.js
+      - name: Check that the changelog has an entry for the version
+        run: |
+          v=$(sed -nE 's/^const PSC_VERSION = "([^"]+)".*/\1/p' power-sankey-card.js)
+          echo "card=$v"
+          grep -q "^## $v\$" CHANGELOG.md || { echo "::error::CHANGELOG.md has no section '## $v'"; exit 1; }
+
+  hacs:
+    name: HACS
+    # HACS can only read public repositories; skipped while the repository is private
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: hacs/action@main
+        with:
+          category: plugin
+          ignore: images  # remove once the README has a screenshot
