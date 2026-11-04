@@ -10,6 +10,10 @@
   <a href="https://github.com/beatschubser/ha-power-sankey-card/actions/workflows/validate.yml"><img src="https://github.com/beatschubser/ha-power-sankey-card/actions/workflows/validate.yml/badge.svg" alt="Validate"></a>
 </p>
 
+<p align="center">
+  <img src="assets/power-sankey-card.webp" width="416" alt="Power Sankey Card: the home consumption drops and the surplus goes into the battery">
+</p>
+
 ## Features
 
 > [!NOTE]

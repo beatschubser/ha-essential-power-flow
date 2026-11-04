@@ -29,4 +29,3 @@ jobs:
       - uses: hacs/action@main
         with:
           category: plugin
-          ignore: images  # remove once the README has a screenshot
