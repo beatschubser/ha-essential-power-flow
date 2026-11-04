@@ -1,7 +1,7 @@
 <h1 align="center">Power Sankey Card</h1>
 
 <p align="center">
-  The power flow between solar, battery, grid and home as a Sankey diagram for Home Assistant dashboards.
+  The power flow between solar, battery, grid and home as a Sankey diagram for Home Assistant.
 </p>
 
 <p align="center">
