@@ -1,6 +1,6 @@
 {
-  "name": "Sleek Power Flow",
-  "filename": "sleek-power-flow-card.js",
+  "name": "Essential Power Flow",
+  "filename": "essential-power-flow-card.js",
   "render_readme": true,
   "homeassistant": "2024.11.0"
 }
