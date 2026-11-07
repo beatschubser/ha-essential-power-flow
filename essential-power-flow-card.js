@@ -19,7 +19,7 @@
  *   5. Styles and registration
  */
 
-const EPF_VERSION = "0.11.0";
+const EPF_VERSION = "0.11.1";
 
 /* ---------- 1. constants ---------- */
 
@@ -1140,6 +1140,9 @@ class EssentialPowerFlowCard extends HTMLElement {
     const styles = []; // js: inline style per dot
     let keyframes = "";
     let html = "";
+    /* every CSS draw gets new keyframe names: WebKit (Safari, HA app on Mac/iOS) can keep
+       using an old @keyframes rule of the same name, so dots ran on an outdated path */
+    if (mode === "css") this._kfGen = ((this._kfGen || 0) + 1) % 1e6;
     g.flows.forEach((f, i) => {
       if (f.v <= 0 || f.p <= 0.01) return;
       if (mode === "css" && f.p < 0.99) return;
@@ -1159,7 +1162,7 @@ class EssentialPowerFlowCard extends HTMLElement {
           styles.push(`${base}${op}transform:translate(${(px - r).toFixed(1)}px,${(py - r).toFixed(1)}px)`);
         }
       } else {
-        const name = `${this._uid}d${i}`;
+        const name = `${this._uid}g${this._kfGen}d${i}`;
         keyframes += `@keyframes ${name}{` +
           pts.map((pt, k) => `${((k / (pts.length - 1)) * 100).toFixed(2)}%{transform:translate(${(pt[0] - r).toFixed(1)}px,${(pt[1] - r).toFixed(1)}px)}`).join("") +
           `}`;

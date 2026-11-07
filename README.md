@@ -42,7 +42,7 @@
 
 1. Copy `essential-power-flow-card.js` to `/config/www/`.
 2. Settings → Dashboards → menu (three dots, top right) → **Resources** → **Add resource**. (No menu entry? Enable **Advanced mode** in your user profile.)
-3. URL: `/local/essential-power-flow-card.js?v=0.11.0`, type: **JavaScript module**.
+3. URL: `/local/essential-power-flow-card.js?v=0.11.1`, type: **JavaScript module**.
 4. Reload the browser. After an update, raise the version in the URL so the browser does not use the cached file.
 
 ## Example
