@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.2
+
+- Fixed: after a source or consumer disappeared, the moving dots could run outside their band (in all browsers). The fix in 0.11.1 did not address the actual cause.
+- The grey line of an idle home now fades in smoothly instead of jumping at the end of a transition.
+- When a node in the middle of a side (e.g. the battery) disappears, the gap between its neighbours no longer jumps at the end of the transition.
+
 ## 0.11.1
 
 - Fixed: in Safari and the Home Assistant app on Mac and iOS, the moving dots could run outside their band after the values changed.

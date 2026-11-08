@@ -19,7 +19,7 @@
  *   5. Styles and registration
  */
 
-const EPF_VERSION = "0.11.1";
+const EPF_VERSION = "0.11.2";
 
 /* ---------- 1. constants ---------- */
 
@@ -945,14 +945,20 @@ class EssentialPowerFlowCard extends HTMLElement {
     const bySide = (side) => Object.values(nodes).filter((n) => n.side === side).sort((a, b) => a.order - b.order);
     const L = bySide("left");
     const R = bySide("right");
-    for (const n of [...L, ...R]) if (n.flows.length) n.ghost = false;
+    for (const n of [...L, ...R]) if (n.flows.some((f) => f.p > 0.5)) n.ghost = false;
 
     /* one scale for both sides, so a watt is equally thick everywhere */
     const total = flows.reduce((a, f) => a + f.v, 0);
-    const gapBefore = (ns, i) => (i ? G * Math.min(ns[i].p, ns[i - 1].p) : 0);
+    /* gap above node i: it fades with the node, and a fading node never takes the gap of
+       its neighbours with it (solar, fading battery, grid keep one full gap at the end) */
+    const gapBefore = (ns, i) => (i ? G * Math.min(ns[i].p, Math.max(...ns.slice(0, i).map((n) => n.p))) : 0);
+    /* How much of the grey idle line a node shows (0..1). It fades with its bands instead of
+       jumping, so a band that has faded out (presence 0) no longer counts as a band. */
+    const ghostW = (n) => n.p * (1 - Math.min(1, Math.max(0, ...n.flows.map((f) => f.p))));
+    for (const n of [...L, ...R]) n.ghostW = ghostW(n);
     const room = (ns) => {
       const gaps = ns.reduce((a, n, i) => a + gapBefore(ns, i), 0);
-      const ghosts = ns.filter((n) => !n.flows.length).reduce((a, n) => a + GH * n.p, 0);
+      const ghosts = ns.reduce((a, n) => a + GH * n.ghostW, 0);
       return Math.max(T - gaps - ghosts, minFlowArea);
     };
     const roomL = room(L);
@@ -964,7 +970,7 @@ class EssentialPowerFlowCard extends HTMLElement {
       let y = 0;
       ns.forEach((n, i) => {
         y += gapBefore(ns, i);
-        n.h = n.flows.length ? n.flows.reduce((a, f) => a + f[end], 0) : GH * n.p;
+        n.h = n.flows.reduce((a, f) => a + f[end], 0) + GH * n.ghostW;
         n.y = y;
         y += n.h;
       });
@@ -1089,7 +1095,7 @@ class EssentialPowerFlowCard extends HTMLElement {
       bands += `<path d="M${g.x0},${f.s0} C${g.mid},${f.s0} ${g.mid},${f.t0} ${g.x1},${f.t0} L${g.x1},${f.t1} C${g.mid},${f.t1} ${g.mid},${f.s1} ${g.x0},${f.s1} Z" fill="url(#${gid})" style="opacity:${f.p.toFixed(3)}"></path>`;
     }
     const bar = (n, x) => {
-      const ghost = !n.flows.length;
+      const ghost = n.ghostW > 0.5 * n.p;
       return `<rect x="${x}" y="${n.y}" width="${g.NW}" height="${n.h}" rx="${Math.min(3, n.h / 2)}" style="fill:${epfEsc(ghost ? ghostCol : n.color)};opacity:${((ghost ? 0.5 : 1) * n.p).toFixed(3)}"></rect>`;
     };
     const bars = g.L.map((n) => bar(n, g.leftX)).join("") + g.R.map((n) => bar(n, g.rightX)).join("");
@@ -1111,7 +1117,15 @@ class EssentialPowerFlowCard extends HTMLElement {
       el.style.visibility = n.p <= 0.01 ? "hidden" : "";
     }
 
-    if (mode !== "keep") this._drawDots(g, frame.totalLines, mode);
+    /* "keep" leaves the running dots alone. Their paths must match the bands just drawn;
+       if anything moved the bands, the dots are rebuilt (they keep their phase). */
+    const geo = g.flows.filter((f) => f.p >= 0.99)
+      .map((f) => `${f.key}:${f.s0.toFixed(1)},${f.s1.toFixed(1)},${f.t0.toFixed(1)},${f.t1.toFixed(1)}`).join("|");
+    if (mode === "keep" && geo !== this._dotGeo) mode = "css";
+    if (mode !== "keep") {
+      this._drawDots(g, frame.totalLines, mode);
+      this._dotGeo = mode === "css" ? geo : null;
+    }
   }
 
   /* Each band keeps the phase (0..1) of its dots. During a transition ("js") the dots
@@ -1140,8 +1154,8 @@ class EssentialPowerFlowCard extends HTMLElement {
     const styles = []; // js: inline style per dot
     let keyframes = "";
     let html = "";
-    /* every CSS draw gets new keyframe names: WebKit (Safari, HA app on Mac/iOS) can keep
-       using an old @keyframes rule of the same name, so dots ran on an outdated path */
+    /* every CSS draw gets new keyframe names, so a dot can never pick up the path of an
+       earlier draw */
     if (mode === "css") this._kfGen = ((this._kfGen || 0) + 1) % 1e6;
     g.flows.forEach((f, i) => {
       if (f.v <= 0 || f.p <= 0.01) return;
