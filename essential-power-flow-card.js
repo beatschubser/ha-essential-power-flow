@@ -19,7 +19,7 @@
  *   5. Styles and registration
  */
 
-const EPF_VERSION = "0.11.2";
+const EPF_VERSION = "0.12.0";
 
 /* ---------- 1. constants ---------- */
 
@@ -321,7 +321,7 @@ class EssentialPowerFlowCard extends HTMLElement {
         return;
       }
       /* yield bar with a forecast: tap switches to the forecast */
-      if (this._config.solar?.forecast_tomorrow && path.includes(this._parts.yieldBar)) {
+      if (this._forecastToggle() && path.includes(this._parts.yieldBar)) {
         this._toggleForecast();
         return;
       }
@@ -349,8 +349,8 @@ class EssentialPowerFlowCard extends HTMLElement {
     const c = this._config;
     const ids = [
       c.solar?.power, c.solar?.yield_today, c.solar?.forecast_tomorrow,
-      c.battery?.power, c.battery?.soc,
-      c.grid?.power,
+      c.battery?.power, c.battery?.charge, c.battery?.discharge, c.battery?.soc,
+      c.grid?.power, c.grid?.import, c.grid?.export,
       ...(c.devices || []).map((d) => d?.power),
     ];
     return ids.filter((id) => typeof id === "string" && id);
@@ -413,6 +413,21 @@ class EssentialPowerFlowCard extends HTMLElement {
   _signed(node) {
     const v = this._watts(node?.power);
     return node?.invert ? -v : v;
+  }
+
+  /* a source is set up by one sensor with sign (power) or two positive ones (e.g. import/export) */
+  _hasPower(node, outKey, inKey) {
+    return !!(node?.power || node?.[outKey] || node?.[inKey]);
+  }
+
+  /* [out of the node, into the node] in W, after min_power. power wins over the two sensors. */
+  _outIn(node, outKey, inKey) {
+    if (node.power) {
+      const v = this._signed(node);
+      return [this._gate(v, node), this._gate(-v, node)];
+    }
+    const pos = (id) => Math.max(this._watts(id), 0);
+    return [this._gate(pos(node[outKey]), node), this._gate(pos(node[inKey]), node)];
   }
 
   _min(node) {
@@ -526,15 +541,11 @@ class EssentialPowerFlowCard extends HTMLElement {
 
   _readModel() {
     const c = this._config;
-    const has = { grid: !!c.grid?.power, solar: !!c.solar?.power, battery: !!c.battery?.power };
+    const has = { grid: this._hasPower(c.grid, "import", "export"), solar: !!c.solar?.power, battery: this._hasPower(c.battery, "discharge", "charge") };
 
-    const grid = has.grid ? this._signed(c.grid) : 0;
-    const fromGrid = this._gate(grid, c.grid);
-    const toGrid = this._gate(-grid, c.grid);
+    const [fromGrid, toGrid] = has.grid ? this._outIn(c.grid, "import", "export") : [0, 0];
     const solar = has.solar ? this._gate(this._watts(c.solar.power), c.solar) : 0;
-    const bat = has.battery ? this._signed(c.battery) : 0;
-    const batOut = this._gate(bat, c.battery);
-    const batIn = this._gate(-bat, c.battery);
+    const [batOut, batIn] = has.battery ? this._outIn(c.battery, "discharge", "charge") : [0, 0];
     const soc = c.battery?.soc ? this._number(c.battery.soc) : null;
 
     const consumption = Math.max(fromGrid + solar + batOut - toGrid - batIn, 0);
@@ -581,7 +592,7 @@ class EssentialPowerFlowCard extends HTMLElement {
     this._actions = {};
     const c = this._config;
     const P = this._parts;
-    const problem = !(c.solar?.power || c.battery?.power || c.grid?.power) ? "setup" : null;
+    const problem = !(c.solar?.power || this._hasPower(c.battery, "discharge", "charge") || this._hasPower(c.grid, "import", "export")) ? "setup" : null;
     P.hint.textContent = problem ? this._t(problem) : "";
     P.hint.hidden = !problem;
     P.sankey.hidden = !!problem;
@@ -622,14 +633,14 @@ class EssentialPowerFlowCard extends HTMLElement {
     if (m.has.battery) {
       const b = c.battery;
       const icon = b.icon || epfSocIcon(m.soc);
-      left.push({ key: "batOut", act: "battery", v: m.batOut, color: EPF_COLORS.batOut, cfg: b, entity: b.power, icon, name: name(b) });
-      right.push({ key: "batIn", act: "battery", v: m.batIn, color: EPF_COLORS.batIn, cfg: b, entity: b.power, icon, name: name(b) });
+      left.push({ key: "batOut", act: "battery", v: m.batOut, color: EPF_COLORS.batOut, cfg: b, entity: b.power || b.discharge, icon, name: name(b) });
+      right.push({ key: "batIn", act: "battery", v: m.batIn, color: EPF_COLORS.batIn, cfg: b, entity: b.power || b.charge, icon, name: name(b) });
     }
     if (m.has.grid) {
       const g = c.grid;
       const icon = g.icon || "mdi:transmission-tower";
-      left.push({ key: "gridIn", act: "grid", v: m.fromGrid, color: EPF_COLORS.gridIn, cfg: g, entity: g.power, icon, name: name(g) });
-      right.push({ key: "gridOut", act: "grid", v: m.toGrid, color: EPF_COLORS.gridOut, cfg: g, entity: g.power, icon, name: name(g) });
+      left.push({ key: "gridIn", act: "grid", v: m.fromGrid, color: EPF_COLORS.gridIn, cfg: g, entity: g.power || g.import, icon, name: name(g) });
+      right.push({ key: "gridOut", act: "grid", v: m.toGrid, color: EPF_COLORS.gridOut, cfg: g, entity: g.power || g.export, icon, name: name(g) });
     }
     const h = c.home || {};
     right.unshift({ key: "home", act: "home", v: m.home, color: EPF_COLORS.home, cfg: h, entity: null,
@@ -709,15 +720,23 @@ class EssentialPowerFlowCard extends HTMLElement {
     this._renderYield();
   }
 
-  /* yield bar: today's yield, or the forecast for a few seconds after a tap */
+  /* tapping switches between yield and forecast only when both are set */
+  _forecastToggle() {
+    const s = this._config.solar || {};
+    return !!(s.yield_today && s.forecast_tomorrow);
+  }
+
+  /* Yield bar: today's yield, or the forecast for a few seconds after a tap.
+     With only a forecast sensor it shows the forecast all the time. */
   _renderYield() {
     const s = this._config.solar || {};
     const P = this._parts;
+    const hasForecast = this._forecastToggle();
+    const forecastOnly = !s.yield_today && !!s.forecast_tomorrow;
     const y = s.yield_today ? this._fmtEnergy(s.yield_today) : null;
-    const hasForecast = !!s.forecast_tomorrow;
-    const fc = this._forecastShown && hasForecast ? this._fmtEnergy(s.forecast_tomorrow) : null;
-    if (y) {
-      const show = fc || y;
+    const fc = (this._forecastShown && hasForecast) || forecastOnly ? this._fmtEnergy(s.forecast_tomorrow) : null;
+    const show = fc || y;
+    if (show) {
       const mode = fc ? "forecast" : "yield";
       const anim = this._yieldMode !== undefined && this._yieldMode !== mode; // fade only when switching
       this._yieldMode = mode;
@@ -731,7 +750,7 @@ class EssentialPowerFlowCard extends HTMLElement {
     } else {
       this._setHtml(P.yieldBar, "");
     }
-    P.yieldBar.hidden = !y;
+    P.yieldBar.hidden = !show;
   }
 
   _applyCardMode() {
@@ -1311,6 +1330,8 @@ const EPF_EDITOR_I18N = {
     power: "Leistung", invert: "Vorzeichen umkehren", soc: "Ladestand", icon: "Icon", name: "Name",
     min_power: "Mindestleistung", tap_action: "Aktion beim Antippen", yield_today: "Ertrag heute",
     forecast_tomorrow: "Prognose morgen", color: "Farbe", as_node: "Als eigener Knoten",
+    import: "Bezug", export: "Einspeisung", discharge: "Entladen", charge: "Laden",
+    h_split: "Statt Leistung, falls getrennte Sensoren (nur positive Werte).",
     max_power: "Maximale Leistung", power_unit: "Einheit", card_height: "Kartenhöhe",
     min_node_height: "Mindesthöhe Knoten", transition_duration: "Dauer der Überblendung", font_scale: "Schriftgröße (Faktor)",
     badge_position: "Akku-Pille", badge_background: "Hintergrund der Akku-Pille",
@@ -1319,7 +1340,7 @@ const EPF_EDITOR_I18N = {
     h_grid_power: "Positiv = Bezug. Sonst Vorzeichen umkehren.",
     h_min_power: "Darunter gilt der Wert als 0 (W).",
     h_yield_today: "Zeigt die Ertragsleiste.",
-    h_forecast_tomorrow: "Antippen der Ertragsleiste zeigt die Prognose.",
+    h_forecast_tomorrow: "Antippen der Ertragsleiste zeigt die Prognose. Ohne Ertrag heute wird sie dauerhaft angezeigt.",
     h_max_power: "Standard 2000 W. Ab hier volle Bandhöhe und Punktgeschwindigkeit.",
     h_card_height: "Standard 372 px.",
     h_min_node_height: "Standard 24 px, 0 = streng proportional.",
@@ -1335,6 +1356,8 @@ const EPF_EDITOR_I18N = {
     power: "Power", invert: "Invert sign", soc: "State of charge", icon: "Icon", name: "Name",
     min_power: "Minimum power", tap_action: "Tap action", yield_today: "Yield today",
     forecast_tomorrow: "Forecast tomorrow", color: "Color", as_node: "Show as own node",
+    import: "Import", export: "Export", discharge: "Discharge", charge: "Charge",
+    h_split: "Instead of power, for separate sensors (positive values only).",
     max_power: "Maximum power", power_unit: "Unit", card_height: "Card height",
     min_node_height: "Minimum node height", transition_duration: "Transition duration", font_scale: "Font size (factor)",
     badge_position: "Battery badge", badge_background: "Battery badge background",
@@ -1343,7 +1366,7 @@ const EPF_EDITOR_I18N = {
     h_grid_power: "Positive = import. Otherwise invert the sign.",
     h_min_power: "Below this the value counts as 0 (W).",
     h_yield_today: "Shows the yield bar.",
-    h_forecast_tomorrow: "Tapping the yield bar shows the forecast.",
+    h_forecast_tomorrow: "Tapping the yield bar shows the forecast. Without a yield sensor it is shown all the time.",
     h_max_power: "Default 2000 W. Full band height and dot speed from here on.",
     h_card_height: "Default 372 px.",
     h_min_node_height: "Default 24 px, 0 = strictly proportional.",
@@ -1442,12 +1465,20 @@ class EssentialPowerFlowCardEditor extends HTMLElement {
       { type: "expandable", name: "battery", title: this._t("battery"), icon: "mdi:battery-medium", schema: [
         { name: "power", selector: sensor, helper: "h_battery_power" },
         { name: "invert", selector: { boolean: {} } },
+        { type: "grid", name: "", schema: [
+          { name: "discharge", selector: sensor, helper: "h_split" },
+          { name: "charge", selector: sensor, helper: "h_split" },
+        ] },
         { name: "soc", selector: sensor },
         ...common,
       ] },
       { type: "expandable", name: "grid", title: this._t("grid"), icon: "mdi:transmission-tower", schema: [
         { name: "power", selector: sensor, helper: "h_grid_power" },
         { name: "invert", selector: { boolean: {} } },
+        { type: "grid", name: "", schema: [
+          { name: "import", selector: sensor, helper: "h_split" },
+          { name: "export", selector: sensor, helper: "h_split" },
+        ] },
         ...common,
       ] },
       { type: "expandable", name: "home", title: this._t("home"), icon: "mdi:home", schema: common },

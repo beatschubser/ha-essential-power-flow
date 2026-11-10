@@ -42,7 +42,7 @@
 
 1. Copy `essential-power-flow-card.js` to `/config/www/`.
 2. Settings → Dashboards → menu (three dots, top right) → **Resources** → **Add resource**. (No menu entry? Enable **Advanced mode** in your user profile.)
-3. URL: `/local/essential-power-flow-card.js?v=0.11.2`, type: **JavaScript module**.
+3. URL: `/local/essential-power-flow-card.js?v=0.12.0`, type: **JavaScript module**.
 4. Reload the browser. After an update, raise the version in the URL so the browser does not use the cached file.
 
 ## Example
@@ -68,17 +68,31 @@ devices:
 max_power: 8000
 ```
 
+Grid or battery with two separate sensors instead of one with a sign:
+
+```yaml
+grid:
+  import: sensor.grid_import_power
+  export: sensor.grid_export_power
+battery:
+  discharge: sensor.battery_discharge_power
+  charge: sensor.battery_charge_power
+  soc: sensor.battery_soc
+```
+
 ## Sources and home
 
-`solar`, `battery`, `grid` and `home` share the same basic options. At least one source needs a `power` sensor.
+`solar`, `battery`, `grid` and `home` share the same basic options. At least one source needs a power sensor.
 
 | Option | For | Effect |
 | --- | --- | --- |
 | `power` | solar, battery, grid | Power sensor (W, kW or MW). Battery: positive = discharging. Grid: positive = import. |
-| `invert` | battery, grid | Inverts the sign if the sensor reports it the other way round. |
+| `invert` | battery, grid | Inverts the sign of `power` if the sensor reports it the other way round. |
+| `import` / `export` | grid | Instead of `power`: two sensors with positive values for import and export. Ignored when `power` is set. |
+| `discharge` / `charge` | battery | Instead of `power`: two sensors with positive values for discharging and charging. Ignored when `power` is set. |
 | `soc` | battery | State of charge in %. Shows the battery badge. |
 | `yield_today` | solar | Today's yield (kWh or Wh). Shows the yield bar at the bottom. |
-| `forecast_tomorrow` | solar | Forecast for tomorrow. Tapping the yield bar shows it for 10 seconds, tapping again switches back at once. |
+| `forecast_tomorrow` | solar | Forecast for tomorrow. Tapping the yield bar shows it for 10 seconds, tapping again switches back at once. Without `yield_today`, the bar shows the forecast all the time. |
 | `icon` | all | Own icon. Otherwise the battery picks its icon by state of charge. |
 | `name` | all | Name above the value. Without it, no name is shown. |
 | `min_power` | all | Values below count as 0 W. A band is only drawn when it reaches the minimum power of its source and its target. |

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.0
+
+- New: grid and battery can use two separate sensors with positive values instead of one with a sign: `import` / `export` and `discharge` / `charge`. Existing configurations keep working unchanged.
+- New: with `forecast_tomorrow` but no `yield_today`, the yield bar shows the forecast all the time.
+
 ## 0.11.2
 
 - Fixed: after a source or consumer disappeared, the moving dots could run outside their band (in all browsers). The fix in 0.11.1 did not address the actual cause.
