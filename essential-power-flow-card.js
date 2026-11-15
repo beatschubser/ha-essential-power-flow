@@ -19,7 +19,7 @@
  *   5. Styles and registration
  */
 
-const EPF_VERSION = "0.12.0";
+const EPF_VERSION = "0.12.1";
 
 /* ---------- 1. constants ---------- */
 
@@ -652,7 +652,7 @@ class EssentialPowerFlowCard extends HTMLElement {
     return { left, right };
   }
 
-  /* links: [source key, target key, watts]. Bands need the min_power of both ends;
+  /* links: [source key, target key, watts]. A band needs the smaller min_power of its ends;
      nodes without a band disappear, only the home stays (as a grey line). */
   _linkNodes(left, right, links) {
     const byKey = {};
@@ -663,7 +663,9 @@ class EssentialPowerFlowCard extends HTMLElement {
     const flows = [];
     for (const [s, t, v] of links) {
       if (!(v > 0) || !byKey[s] || !byKey[t]) continue;
-      if (v < Math.max(this._min(byKey[s].cfg), this._min(byKey[t].cfg))) continue;
+      /* a node's min_power decides whether the node appears; a single band only has to reach
+         the smaller of both, so e.g. the solar share of a wallbox (min 300 W) is not lost */
+      if (v < Math.min(this._min(byKey[s].cfg), this._min(byKey[t].cfg))) continue;
       const f = { s: byKey[s], t: byKey[t], v };
       flows.push(f);
       f.s.flows.push(f);

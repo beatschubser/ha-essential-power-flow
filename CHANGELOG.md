@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.1
+
+- Fixed: a share below a consumer's minimum power (e.g. a little solar into the wallbox) was missing, so the numbers did not add up.
+
 ## 0.12.0
 
 - New: grid and battery can use two separate sensors with positive values instead of one with a sign: `import` / `export` and `discharge` / `charge`. Existing configurations keep working unchanged.

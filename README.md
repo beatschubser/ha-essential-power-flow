@@ -42,7 +42,7 @@
 
 1. Copy `essential-power-flow-card.js` to `/config/www/`.
 2. Settings → Dashboards → menu (three dots, top right) → **Resources** → **Add resource**. (No menu entry? Enable **Advanced mode** in your user profile.)
-3. URL: `/local/essential-power-flow-card.js?v=0.12.0`, type: **JavaScript module**.
+3. URL: `/local/essential-power-flow-card.js?v=0.12.1`, type: **JavaScript module**.
 4. Reload the browser. After an update, raise the version in the URL so the browser does not use the cached file.
 
 ## Example
@@ -95,7 +95,7 @@ battery:
 | `forecast_tomorrow` | solar | Forecast for tomorrow. Tapping the yield bar shows it for 10 seconds, tapping again switches back at once. Without `yield_today`, the bar shows the forecast all the time. |
 | `icon` | all | Own icon. Otherwise the battery picks its icon by state of charge. |
 | `name` | all | Name above the value. Without it, no name is shown. |
-| `min_power` | all | Values below count as 0 W. A band is only drawn when it reaches the minimum power of its source and its target. |
+| `min_power` | all | Values below count as 0 W. A single band is drawn once it reaches the smaller minimum power of its source and its target. |
 | `tap_action` | all | Action on tap. Without it, the sensor's more-info dialog opens; for the home, the card's action applies. `action: none` turns tapping off. |
 
 The home consumption is always calculated from the sources. The home is always shown, as a grey line when it draws no power.
