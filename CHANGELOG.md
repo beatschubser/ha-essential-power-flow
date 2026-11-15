@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.2
+
+- Fixed: with `power_unit: kW`, values below 50 W (e.g. battery standby) showed up as a "0.0 kW" node.
+
 ## 0.12.1
 
 - Fixed: a share below a consumer's minimum power (e.g. a little solar into the wallbox) was missing, so the numbers did not add up.

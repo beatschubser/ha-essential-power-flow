@@ -42,7 +42,7 @@
 
 1. Copy `essential-power-flow-card.js` to `/config/www/`.
 2. Settings → Dashboards → menu (three dots, top right) → **Resources** → **Add resource**. (No menu entry? Enable **Advanced mode** in your user profile.)
-3. URL: `/local/essential-power-flow-card.js?v=0.12.1`, type: **JavaScript module**.
+3. URL: `/local/essential-power-flow-card.js?v=0.12.2`, type: **JavaScript module**.
 4. Reload the browser. After an update, raise the version in the URL so the browser does not use the cached file.
 
 ## Example
@@ -119,7 +119,7 @@ The home consumption is always calculated from the sources. The home is always s
 | Option | Default | Effect |
 | --- | --- | --- |
 | `max_power` | `2000` | Power in W at which the bands reach their full height and the dots their full speed. |
-| `power_unit` | `auto` | `auto` (kW from 1000 W on), `W` or `kW`. |
+| `power_unit` | `auto` | `auto` (kW from 1000 W on), `W` or `kW`. With `kW`, values below 50 W are hidden, as they would read "0.0 kW". |
 | `card_height` | `372` | Card height in px. |
 | `min_node_height` | `24` | Minimum height of a node in px, so small values stay visible. Only the band end at the small node is widened. `0` draws strictly proportional. |
 | `transition_duration` | `600` | Duration of the fade in ms, `0` turns it off. Skipped automatically with "reduce motion". |

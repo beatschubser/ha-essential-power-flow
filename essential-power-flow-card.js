@@ -19,7 +19,7 @@
  *   5. Styles and registration
  */
 
-const EPF_VERSION = "0.12.1";
+const EPF_VERSION = "0.12.2";
 
 /* ---------- 1. constants ---------- */
 
@@ -430,8 +430,12 @@ class EssentialPowerFlowCard extends HTMLElement {
     return [this._gate(pos(node[outKey]), node), this._gate(pos(node[inKey]), node)];
   }
 
+  /* Effective minimum power of a node: its min_power, but at least what is needed to show
+     more than zero. With power_unit kW (one decimal) anything below 50 W would read
+     "0.0 kW", so such a node and its bands are not shown at all. */
   _min(node) {
-    return Math.max(Number(node?.min_power) || 0, 0);
+    const shownAsZero = this._opt("power_unit") === "kW" ? 500 / Math.pow(10, EPF_FIXED.kiloDecimals) : 0;
+    return Math.max(Number(node?.min_power) || 0, shownAsZero, 0);
   }
 
   /* value below the node's min_power counts as 0 */
