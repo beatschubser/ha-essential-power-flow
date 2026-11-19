@@ -24,7 +24,7 @@
 - Battery and grid switch sides with their direction: discharging and import on the left, charging and export on the right.
 - Changes fade smoothly, moving dots show the direction and get faster with more power.
 - Devices appear in a list below the diagram, sorted by power. Large consumers such as a wallbox can be shown as their own node next to the home.
-- A badge in the corner shows the battery's state of charge.
+- The battery's state of charge sits at the right of the footer, next to the yield.
 - A yield bar shows today's solar yield. Tap it to see tomorrow's forecast.
 - Everything can be set up in the visual editor, including tap actions. YAML works too.
 - One file, no dependencies.
@@ -42,7 +42,7 @@
 
 1. Copy `essential-power-flow-card.js` to `/config/www/`.
 2. Settings → Dashboards → menu (three dots, top right) → **Resources** → **Add resource**. (No menu entry? Enable **Advanced mode** in your user profile.)
-3. URL: `/local/essential-power-flow-card.js?v=0.12.2`, type: **JavaScript module**.
+3. URL: `/local/essential-power-flow-card.js?v=0.13.0`, type: **JavaScript module**.
 4. Reload the browser. After an update, raise the version in the URL so the browser does not use the cached file.
 
 ## Example
@@ -90,7 +90,7 @@ battery:
 | `invert` | battery, grid | Inverts the sign of `power` if the sensor reports it the other way round. |
 | `import` / `export` | grid | Instead of `power`: two sensors with positive values for import and export. Ignored when `power` is set. |
 | `discharge` / `charge` | battery | Instead of `power`: two sensors with positive values for discharging and charging. Ignored when `power` is set. |
-| `soc` | battery | State of charge in %. Shows the battery badge. |
+| `soc` | battery | State of charge in %. Shown at the right of the footer, separated from the yield by a thin line. |
 | `yield_today` | solar | Today's yield (kWh or Wh). Shows the yield bar at the bottom. |
 | `forecast_tomorrow` | solar | Forecast for tomorrow. Tapping the yield bar shows it for 10 seconds, tapping again switches back at once. Without `yield_today`, the bar shows the forecast all the time. |
 | `icon` | all | Own icon. Otherwise the battery picks its icon by state of charge. |
@@ -124,8 +124,6 @@ The home consumption is always calculated from the sources. The home is always s
 | `min_node_height` | `24` | Minimum height of a node in px, so small values stay visible. Only the band end at the small node is widened. `0` draws strictly proportional. |
 | `transition_duration` | `600` | Duration of the fade in ms, `0` turns it off. Skipped automatically with "reduce motion". |
 | `font_scale` | `1` | Factor for all font sizes (0.5 to 2). |
-| `badge_position` | `top-right` | Corner of the battery badge: `top-right` or `top-left`. Labels below keep a distance of 12 px. |
-| `badge_background` | `false` | Grey background for the battery badge. |
 | `tap_action` | none | Action when tapping the card. Applies everywhere except the device list and elements with their own action. |
 
 Rarely changed values such as decimals, dot speeds and font sizes are collected in `EPF_FIXED` and `EPF_FONT` at the top of the file.

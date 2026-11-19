@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.0
+
+- Battery state of charge moved from the top corner into the footer, right of the yield.
+- Removed: `badge_position` and `badge_background`.
+
 ## 0.12.2
 
 - Fixed: with `power_unit: kW`, values below 50 W (e.g. battery standby) showed up as a "0.0 kW" node.

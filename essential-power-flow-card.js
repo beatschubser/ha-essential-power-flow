@@ -3,7 +3,7 @@
  *
  * Shows the current power flow between solar, battery, grid and home as a
  * Sankey diagram, with optional devices (in a list or as own nodes), a battery
- * badge and a yield bar. Configured in the visual editor or in YAML.
+ * battery state of charge and a yield bar in the footer. Configured in the visual editor or in YAML.
  *
  * Structure of this file
  *   1. Constants: defaults, fixed values, typography, geometry, translations
@@ -11,7 +11,7 @@
  *   3. The card element
  *      - lifecycle (config, hass, connect/disconnect)
  *      - reading states into a model
- *      - building the scene (nodes, flows, list, badge, yield bar)
+ *      - building the scene (nodes, flows, list, footer with yield and battery)
  *      - transitions between scenes
  *      - drawing one frame (bands, node bars, labels, dots)
  *      - tap actions
@@ -19,7 +19,7 @@
  *   5. Styles and registration
  */
 
-const EPF_VERSION = "0.12.2";
+const EPF_VERSION = "0.13.0";
 
 /* ---------- 1. constants ---------- */
 
@@ -31,8 +31,6 @@ const EPF_DEFAULTS = {
   min_node_height: 24, // px; small nodes are widened to stay visible, 0 = strictly proportional
   transition_duration: 600, // ms; fade between two states, 0 = off
   font_scale: 1, // factor for all font sizes
-  badge_position: "top-right", // top-right | top-left
-  badge_background: false, // grey pill behind the battery badge
 };
 
 /* Values that are rarely changed, kept in one place instead of being options. */
@@ -47,12 +45,11 @@ const EPF_FIXED = {
   minFlowRate: 0.75, // s per band at max_power
   maxFlowRate: 6, // s per band at very small power
   forecastSeconds: 10, // the forecast in the yield bar falls back to the yield after this
-  badgeGap: 12, // px between battery badge and the labels below it
 };
 
 /* Font sizes in px (multiplied by font_scale) and weights, following the kiosk design rules. */
 const EPF_FONT = {
-  value: 18, // power values at the nodes, battery badge
+  value: 18, // power values at the nodes, state of charge in the footer
   unit: 14, // units next to values
   name: 12, // node names (only when a name is set)
   ghost: 14, // value of an idle home node
@@ -303,15 +300,15 @@ class EssentialPowerFlowCard extends HTMLElement {
       `<style>${EssentialPowerFlowCard.styles}</style><ha-card><div class="main">` +
       `<div class="hint" hidden></div>` +
       `<div class="sankey"><svg class="flows" aria-hidden="true"></svg><div class="dots"></div><div class="labels"></div></div>` +
-      `<div class="list" hidden></div><div class="yield" hidden></div>` +
-      `<div class="badge"></div>` +
+      `<div class="list" hidden></div>` +
+      `<div class="foot" hidden><div class="yield" hidden></div><div class="fsep" hidden></div><div class="soc" hidden></div></div>` +
       `</div></ha-card>`;
     this._card = this.shadowRoot.querySelector("ha-card");
     this._main = this.shadowRoot.querySelector(".main");
     const q = (sel) => this.shadowRoot.querySelector(sel);
     this._parts = {
       hint: q(".hint"), sankey: q(".sankey"), svg: q("svg.flows"), dots: q(".dots"), labels: q(".labels"),
-      list: q(".list"), yieldBar: q(".yield"), badge: q(".badge"),
+      list: q(".list"), foot: q(".foot"), yieldBar: q(".yield"), sep: q(".fsep"), soc: q(".soc"),
     };
     this._main.addEventListener("click", (ev) => {
       const path = ev.composedPath();
@@ -601,8 +598,7 @@ class EssentialPowerFlowCard extends HTMLElement {
     P.hint.hidden = !problem;
     P.sankey.hidden = !!problem;
     if (problem) {
-      for (const k of ["list", "yieldBar"]) P[k].hidden = true;
-      P.badge.classList.remove("show");
+      for (const k of ["list", "foot"]) P[k].hidden = true;
       this._applyCardMode();
       return;
     }
@@ -615,7 +611,6 @@ class EssentialPowerFlowCard extends HTMLElement {
     for (const d of m.nodeDevices) links.push(["solar", d.key, d.fromSolar], ["batOut", d.key, d.fromBattery], ["gridIn", d.key, d.fromGrid]);
     const { L, R, flows } = this._linkNodes(left, right, links);
 
-    this._renderBadge(m);
     this._renderStatic(m);
     this._applyCardMode();
 
@@ -682,35 +677,33 @@ class EssentialPowerFlowCard extends HTMLElement {
     return { L, R, flows };
   }
 
-  /* battery badge: icon and state of charge in a card corner, shown whenever battery.soc is set */
-  _renderBadge(m) {
+  /* battery state of charge at the right of the footer, whenever battery.soc is set */
+  _renderSoc(m) {
     const c = this._config;
-    const B = this._parts.badge;
+    const S = this._parts.soc;
     const show = m.has.battery && m.soc !== null;
-    B.classList.toggle("left", this._opt("badge_position") === "top-left");
-    B.classList.toggle("bg", this._opt("badge_background") === true);
-    B.style.setProperty("--epf-td", `${this._transitionMs()}ms`);
     if (show) {
-      const clickable = this._bindAction("badge", c.battery, c.battery.soc);
-      this._setHtml(B, `<ha-icon icon="${epfEsc(c.battery.icon || epfSocIcon(m.soc))}"></ha-icon><span>${this._socHtml(m.soc)}</span>`);
-      if (clickable) B.dataset.act = "badge";
-      else delete B.dataset.act;
-      B.classList.toggle("clickable", clickable);
+      const clickable = this._bindAction("soc", c.battery, c.battery.soc);
+      this._setHtml(S, `<ha-icon icon="${epfEsc(c.battery.icon || epfSocIcon(m.soc))}"></ha-icon><span>${this._socHtml(m.soc)}</span>`);
+      if (clickable) S.dataset.act = "soc";
+      else delete S.dataset.act;
+      S.classList.toggle("clickable", clickable);
+    } else {
+      this._setHtml(S, "");
     }
-    B.classList.toggle("show", show);
-    this._badgeSide = show ? (B.classList.contains("left") ? "left" : "right") : null;
+    S.hidden = !show;
   }
 
-  /* Room the labels on the badge side keep free at the top of the band area (in px from
-     its top edge): badge bottom plus EPF_FIXED.badgeGap. 0 while the badge is hidden. */
-  _badgeClearance() {
-    if (!this._badgeSide) return 0;
-    const B = this._parts.badge;
-    if (!B.offsetHeight) return 0;
-    return Math.max(0, B.offsetTop + B.offsetHeight + EPF_FIXED.badgeGap - this._parts.sankey.offsetTop);
+  /* footer: yield bar on the left, state of charge on the right, a thin line between them */
+  _renderFoot(m) {
+    const P = this._parts;
+    this._renderYield();
+    this._renderSoc(m);
+    P.sep.hidden = P.yieldBar.hidden || P.soc.hidden;
+    P.foot.hidden = P.yieldBar.hidden && P.soc.hidden;
   }
 
-  /* device list and yield bar */
+  /* device list and footer */
   _renderStatic(m) {
     const P = this._parts;
     this._applyTypography();
@@ -723,7 +716,7 @@ class EssentialPowerFlowCard extends HTMLElement {
     this._setHtml(P.list, list);
     P.list.hidden = !list;
 
-    this._renderYield();
+    this._renderFoot(m);
   }
 
   /* tapping switches between yield and forecast only when both are set */
@@ -782,12 +775,11 @@ class EssentialPowerFlowCard extends HTMLElement {
     /* band area grows with the square root of the power, up to max_power */
     const flowSum = flows.reduce((a, f) => a + f.v, 0);
     const ratio = Math.sqrt(Math.min(flowSum / this._optNum("max_power", { positive: true }), 1));
-    const badgeClear = this._badgeClearance();
     const padTo = Math.max(this._parts.sankey.clientHeight, 80);
-    const maxT = Math.max(padTo - 16 - badgeClear, 40);
+    const maxT = Math.max(padTo - 16, 40);
     const minT = Math.min(EPF_FIXED.minFlowHeight, maxT);
     const T = minT + (maxT - minT) * ratio;
-    return { flows: values, flowMeta, nodes, T, padTo, W, totalLines: flowSum, badgeClear, badgeSide: this._badgeSide };
+    return { flows: values, flowMeta, nodes, T, padTo, W, totalLines: flowSum };
   }
 
   /* ----- transitions ----- */
@@ -871,7 +863,6 @@ class EssentialPowerFlowCard extends HTMLElement {
     const sameKeys = (a, b) => Object.keys(a).sort().join() === Object.keys(b).sort().join();
     if (!sameKeys(from.flows, to.flows) || !sameKeys(from.nodes, to.nodes)) return false;
     if (Math.abs(from.padTo - to.padTo) > 1) return false;
-    if (Math.abs((from.badgeClear || 0) - (to.badgeClear || 0)) > 1 || from.badgeSide !== to.badgeSide) return false;
     return Object.keys(to.flows).every((k) => Math.abs(to.flows[k] - from.flows[k]) < th);
   }
 
@@ -879,8 +870,7 @@ class EssentialPowerFlowCard extends HTMLElement {
   _snapshot(frame, target, from, done) {
     if (done) {
       return { flows: { ...target.flows }, flowP: {}, presence: {}, flowMeta: target.flowMeta, nodes: target.nodes,
-        T: frame.T, padTo: frame.padTo, W: target.W, totalLines: target.totalLines,
-        badgeClear: frame.badgeClear, badgeSide: frame.badgeSide };
+        T: frame.T, padTo: frame.padTo, W: target.W, totalLines: target.totalLines };
     }
     const flows = {};
     const flowP = {};
@@ -899,8 +889,6 @@ class EssentialPowerFlowCard extends HTMLElement {
       padTo: frame.padTo,
       W: target.W,
       totalLines: target.totalLines,
-      badgeClear: frame.badgeClear,
-      badgeSide: frame.badgeSide,
     };
   }
 
@@ -934,9 +922,6 @@ class EssentialPowerFlowCard extends HTMLElement {
       padTo: from && from.padTo && to.padTo ? lerp(from.padTo, to.padTo) : to.padTo,
       W: to.W,
       totalLines: to.totalLines,
-      /* the badge side switches at once, the clearance fades between both states */
-      badgeClear: from ? lerp(from.badgeSide ? from.badgeClear || 0 : 0, to.badgeClear || 0) : to.badgeClear || 0,
-      badgeSide: to.badgeSide || from?.badgeSide || null,
     };
   }
 
@@ -1049,16 +1034,6 @@ class EssentialPowerFlowCard extends HTMLElement {
     if (frame.padTo && H < frame.padTo) {
       shift += (frame.padTo - H) / 2;
       H = frame.padTo;
-    }
-    /* keep the labels on the badge side below the badge */
-    const badgeNs = frame.badgeSide === "left" ? L : frame.badgeSide === "right" ? R : [];
-    if (frame.badgeClear > 0 && badgeNs.length) {
-      /* weighted by presence, so an appearing or leaving label moves the block smoothly */
-      const down = Math.max(...badgeNs.map((n) => (frame.badgeClear - n.ly - shift) * n.p));
-      if (down > 0) {
-        shift += down;
-        H = Math.max(H, Math.ceil(Math.max(Hc + shift, ...all.map((n) => n.ly + shift + n.lh * n.p)) + 2));
-      }
     }
     for (const n of all) {
       n.y += shift;
@@ -1340,7 +1315,6 @@ const EPF_EDITOR_I18N = {
     h_split: "Statt Leistung, falls getrennte Sensoren (nur positive Werte).",
     max_power: "Maximale Leistung", power_unit: "Einheit", card_height: "Kartenhöhe",
     min_node_height: "Mindesthöhe Knoten", transition_duration: "Dauer der Überblendung", font_scale: "Schriftgröße (Faktor)",
-    badge_position: "Akku-Pille", badge_background: "Hintergrund der Akku-Pille",
     add: "Gerät hinzufügen", up: "Nach oben", down: "Nach unten", remove: "Entfernen", newDevice: "Neues Gerät",
     h_battery_power: "Positiv = Entladen. Sonst Vorzeichen umkehren.",
     h_grid_power: "Positiv = Bezug. Sonst Vorzeichen umkehren.",
@@ -1355,7 +1329,7 @@ const EPF_EDITOR_I18N = {
     h_color: "Farbe des Bands und Balkens, z.B. #964cb5.",
     h_as_node: "Rechts unter dem Haus statt in der Liste.",
     h_card_tap_action: "Gilt überall außer in der Geräteliste und auf Knoten mit eigener Aktion.",
-    o_auto: "Automatisch (W / kW)", o_w: "W", o_kw: "kW", o_top_right: "Oben rechts", o_top_left: "Oben links",
+    o_auto: "Automatisch (W / kW)", o_w: "W", o_kw: "kW",
   },
   en: {
     solar: "Solar", battery: "Battery", grid: "Grid", home: "Home", devices: "Devices", display: "Display",
@@ -1366,7 +1340,6 @@ const EPF_EDITOR_I18N = {
     h_split: "Instead of power, for separate sensors (positive values only).",
     max_power: "Maximum power", power_unit: "Unit", card_height: "Card height",
     min_node_height: "Minimum node height", transition_duration: "Transition duration", font_scale: "Font size (factor)",
-    badge_position: "Battery badge", badge_background: "Battery badge background",
     add: "Add device", up: "Move up", down: "Move down", remove: "Remove", newDevice: "New device",
     h_battery_power: "Positive = discharging. Otherwise invert the sign.",
     h_grid_power: "Positive = import. Otherwise invert the sign.",
@@ -1381,12 +1354,12 @@ const EPF_EDITOR_I18N = {
     h_color: "Color of band and bar, e.g. #964cb5.",
     h_as_node: "Right below the home instead of in the list.",
     h_card_tap_action: "Applies everywhere except the device list and nodes with their own action.",
-    o_auto: "Automatic (W / kW)", o_w: "W", o_kw: "kW", o_top_right: "Top right", o_top_left: "Top left",
+    o_auto: "Automatic (W / kW)", o_w: "W", o_kw: "kW",
   },
 };
 
 /* keys whose value false is the default and is left out of the YAML */
-const EPF_FALSE_DEFAULTS = new Set(["invert", "as_node", "badge_background"]);
+const EPF_FALSE_DEFAULTS = new Set(["invert", "as_node"]);
 
 /* Removes empty values, so the YAML only holds what was set. Device entries are kept. */
 function epfClean(obj) {
@@ -1496,8 +1469,6 @@ class EssentialPowerFlowCardEditor extends HTMLElement {
           { name: "power_unit", selector: select([["auto", "o_auto"], ["W", "o_w"], ["kW", "o_kw"]]) },
           { name: "transition_duration", selector: { number: { min: 0, step: 50, mode: "box", unit_of_measurement: "ms" } } },
           { name: "font_scale", selector: { number: { min: 0.5, max: 2, step: 0.05, mode: "box" } } },
-          { name: "badge_position", selector: select([["top-right", "o_top_right"], ["top-left", "o_top_left"]]) },
-          { name: "badge_background", selector: { boolean: {} } },
         ] },
         { name: "tap_action", selector: { ui_action: {} }, helper: "h_card_tap_action" },
       ] },
@@ -1686,18 +1657,6 @@ ha-card { display: block; font-family: Roboto, var(--ha-font-family-body, var(--
 .lbl.ghost .unit { font-size: inherit; }
 .lbl ha-icon { --mdc-icon-size: 24px; color: var(--secondary-text-color); }
 
-/* battery badge */
-.badge { position: absolute; top: 12px; right: 12px; z-index: 1; display: flex; align-items: center; gap: 6px;
-  padding: 5px 12px 5px 9px; border-radius: 999px; background: none;
-  color: var(--primary-text-color); font-size: var(--epf-val-fs, 18px); font-weight: var(--epf-val-fw, 300); line-height: 1; white-space: nowrap;
-  opacity: 0; visibility: hidden; pointer-events: none;
-  transition: opacity var(--epf-td, 600ms) ease, visibility 0s linear var(--epf-td, 600ms); }
-.badge.bg { background: rgba(128,128,128,0.12); }
-.badge.left { right: auto; left: 12px; }
-.badge.show { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity var(--epf-td, 600ms) ease, visibility 0s; }
-.badge ha-icon { --mdc-icon-size: 24px; color: var(--secondary-text-color); }
-.badge .unit { font-size: var(--epf-unit-fs, 14px); font-weight: var(--epf-text-fw, 300); color: var(--secondary-text-color); }
-
 /* device list */
 .list { display: flex; flex-direction: column; gap: 2px; border-top: 1px solid rgba(128,128,128,0.2); padding-top: 8px; }
 .row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 40px;
@@ -1709,9 +1668,15 @@ ha-card { display: block; font-family: Roboto, var(--ha-font-family-body, var(--
 .bar > span { display: block; height: 100%; border-radius: 3px; }
 .row .v { font-size: var(--epf-dev-v-fs, 14px); font-weight: var(--epf-val-fw, 300); min-width: 64px; text-align: right; white-space: nowrap; }
 
-/* yield bar */
-.yield { flex: none; display: flex; align-items: center; gap: 12px; height: 56px; box-sizing: border-box;
+/* footer: yield bar | state of charge */
+.foot { flex: none; display: flex; align-items: center; height: 56px; box-sizing: border-box;
   margin: 0 -16px -16px; padding: 0 16px; border-top: 1px solid rgba(128,128,128,0.2); }
+.yield { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; align-items: center; gap: 12px; }
+.fsep { flex: none; width: 1px; align-self: stretch; margin: 14px 16px; background: rgba(128,128,128,0.2); }
+.soc { flex: none; margin-left: auto; display: flex; align-items: center; gap: 6px; padding: 4px 0; background: none; border: 0;
+  color: var(--primary-text-color); font: inherit; font-size: var(--epf-val-fs, 18px); font-weight: var(--epf-val-fw, 300); line-height: 1; white-space: nowrap; }
+.soc ha-icon { --mdc-icon-size: 22px; color: var(--secondary-text-color); }
+.soc .unit { font-size: var(--epf-unit-fs, 14px); font-weight: var(--epf-text-fw, 300); color: var(--secondary-text-color); }
 .yield.tappable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .yswap { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 12px; }
 .yswap.anim { animation: epf-yfade 250ms ease-out; }
