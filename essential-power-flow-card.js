@@ -19,7 +19,7 @@
  *   5. Styles and registration
  */
 
-const EPF_VERSION = "0.13.0";
+const EPF_VERSION = "0.13.1";
 
 /* ---------- 1. constants ---------- */
 
@@ -106,11 +106,11 @@ const EPF_THIN_SPACE = " ";
 
 const EPF_I18N = {
   de: {
-    solar: "Solar", grid: "Netz", battery: "Batterie", home: "Haus", yield: "Ertrag heute", forecast: "Prognose morgen",
+    solar: "Solar", grid: "Netz", battery: "Batterie", home: "Haus", yield: "Ertrag", forecast: "Prognose",
     setup: "Bitte im Editor mindestens einen Sensor für Solar, Batterie oder Netz wählen.",
   },
   en: {
-    solar: "Solar", grid: "Grid", battery: "Battery", home: "Home", yield: "Yield today", forecast: "Forecast tomorrow",
+    solar: "Solar", grid: "Grid", battery: "Battery", home: "Home", yield: "Yield", forecast: "Forecast",
     setup: "Please pick at least one sensor for solar, battery or grid in the editor.",
   },
 };

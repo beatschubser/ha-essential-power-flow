@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.1
+
+- Shorter footer labels: "Yield" and "Forecast".
+
 ## 0.13.0
 
 - Battery state of charge moved from the top corner into the footer, right of the yield.
