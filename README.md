@@ -124,6 +124,7 @@ The home consumption is always calculated from the sources. The home is always s
 | `min_node_height` | `24` | Minimum height of a node in px, so small values stay visible. Only the band end at the small node is widened. `0` draws strictly proportional. |
 | `transition_duration` | `600` | Duration of the fade in ms, `0` turns it off. Skipped automatically with "reduce motion". |
 | `font_scale` | `1` | Factor for all font sizes (0.5 to 2). |
+| `colored_icons` | `true` | Node icons in the color of their bar, so sources can be told apart at a glance. `false` keeps them grey. |
 | `tap_action` | none | Action when tapping the card. Applies everywhere except the device list and elements with their own action. |
 
 Rarely changed values such as decimals, dot speeds and font sizes are collected in `EPF_FIXED` and `EPF_FONT` at the top of the file.

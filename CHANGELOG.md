@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.0
+
+- Node icons now take the color of their bar, so solar, battery and grid can be told apart at a glance. `colored_icons: false` keeps them grey.
+
 ## 0.13.1
 
 - Shorter footer labels: "Yield" and "Forecast".

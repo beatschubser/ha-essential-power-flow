@@ -19,7 +19,7 @@
  *   5. Styles and registration
  */
 
-const EPF_VERSION = "0.13.1";
+const EPF_VERSION = "0.14.0";
 
 /* ---------- 1. constants ---------- */
 
@@ -31,6 +31,7 @@ const EPF_DEFAULTS = {
   min_node_height: 24, // px; small nodes are widened to stay visible, 0 = strictly proportional
   transition_duration: 600, // ms; fade between two states, 0 = off
   font_scale: 1, // factor for all font sizes
+  colored_icons: true, // node icons in the color of their bar
 };
 
 /* Values that are rarely changed, kept in one place instead of being options. */
@@ -1222,9 +1223,10 @@ class EssentialPowerFlowCard extends HTMLElement {
       : `left:${rightX + NW + labelOffset}px;max-width:${W - rightX - NW - 12}px`;
     const tag = clickable ? "button" : "div";
     const attrs = clickable ? ` type="button" data-act="${n.act}"` : "";
+    const iconStyle = this._opt("colored_icons") !== false && !n.ghost && n.color ? ` style="color:${epfEsc(n.color)}"` : "";
     return `<${tag} data-k="${n.key}" class="lbl ${side}${n.ghost ? " ghost" : ""}${clickable ? " clickable" : ""}" style="${style}"${attrs}>` +
       (n.name ? `<span class="name">${epfEsc(n.name)}</span>` : "") +
-      `<span class="val"><ha-icon icon="${epfEsc(n.icon)}"></ha-icon><span>${this._fmtHtml(n.v)}</span></span>` +
+      `<span class="val"><ha-icon icon="${epfEsc(n.icon)}"${iconStyle}></ha-icon><span>${this._fmtHtml(n.v)}</span></span>` +
       `</${tag}>`;
   }
 
@@ -1326,6 +1328,7 @@ const EPF_EDITOR_I18N = {
     h_min_node_height: "Standard 24 px, 0 = streng proportional.",
     h_transition_duration: "Standard 600 ms, 0 = aus.",
     h_font_scale: "Standard 1.",
+    colored_icons: "Farbige Icons", h_colored_icons: "Icons der Knoten in der Farbe ihres Balkens.",
     h_color: "Farbe des Bands und Balkens, z.B. #964cb5.",
     h_as_node: "Rechts unter dem Haus statt in der Liste.",
     h_card_tap_action: "Gilt überall außer in der Geräteliste und auf Knoten mit eigener Aktion.",
@@ -1351,6 +1354,7 @@ const EPF_EDITOR_I18N = {
     h_min_node_height: "Default 24 px, 0 = strictly proportional.",
     h_transition_duration: "Default 600 ms, 0 = off.",
     h_font_scale: "Default 1.",
+    colored_icons: "Colored icons", h_colored_icons: "Node icons in the color of their bar.",
     h_color: "Color of band and bar, e.g. #964cb5.",
     h_as_node: "Right below the home instead of in the list.",
     h_card_tap_action: "Applies everywhere except the device list and nodes with their own action.",
@@ -1470,6 +1474,7 @@ class EssentialPowerFlowCardEditor extends HTMLElement {
           { name: "transition_duration", selector: { number: { min: 0, step: 50, mode: "box", unit_of_measurement: "ms" } } },
           { name: "font_scale", selector: { number: { min: 0.5, max: 2, step: 0.05, mode: "box" } } },
         ] },
+        { name: "colored_icons", selector: { boolean: {} }, helper: "h_colored_icons" },
         { name: "tap_action", selector: { ui_action: {} }, helper: "h_card_tap_action" },
       ] },
     ];
@@ -1509,7 +1514,7 @@ class EssentialPowerFlowCardEditor extends HTMLElement {
 
     const main = R.querySelector("ha-form.main");
     const { devices: _omit, ...rest } = this._config;
-    main.data = rest;
+    main.data = { colored_icons: EPF_DEFAULTS.colored_icons, ...rest }; // switch shows the default when unset
     main.hass = this._hass;
 
     R.querySelectorAll(".dev").forEach((el, i) => {
@@ -1592,6 +1597,7 @@ class EssentialPowerFlowCardEditor extends HTMLElement {
     const { type, ...rest } = config;
     const cleaned = epfClean(rest);
     if (!cleaned.devices || !cleaned.devices.length) delete cleaned.devices;
+    if (cleaned.colored_icons === EPF_DEFAULTS.colored_icons) delete cleaned.colored_icons;
     const order = ["solar", "battery", "grid", "home", "devices", ...Object.keys(EPF_DEFAULTS), "tap_action"];
     const clean = { type };
     for (const k of order) if (k in cleaned) clean[k] = cleaned[k];
